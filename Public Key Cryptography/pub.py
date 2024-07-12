@@ -97,7 +97,7 @@ def RSA_with_e_3():
 	    p = getPrime(1024)
 	    q = getPrime(1024)
 	    phi = (p - 1) * (q - 1)
-	    d = inverse(e, phi)
+	    d = inverse(e, phi) # Note: Given the explanation below, this 'inverse' call fails whenever p or q are not 2 mod 3
 
 	n = p * q
 
@@ -113,8 +113,211 @@ def RSA_with_e_3():
 	decrypted = long_to_bytes(pt)
 	assert decrypted == flag
 
-RSA_with_e_3()
+def decrypt_when_e_is_3():
+	n = 17258212916191948536348548470938004244269544560039009244721959293554822498047075403658429865201816363311805874117705688359853941515579440852166618074161313773416434156467811969628473425365608002907061241714688204565170146117869742910273064909154666642642308154422770994836108669814632309362483307560217924183202838588431342622551598499747369771295105890359290073146330677383341121242366368309126850094371525078749496850520075015636716490087482193603562501577348571256210991732071282478547626856068209192987351212490642903450263288650415552403935705444809043563866466823492258216747445926536608548665086042098252335883
+	e = 3
+	ct = 243251053617903760309941844835411292373350655973075480264001352919865180151222189820473358411037759381328642957324889519192337152355302808400638052620580409813222660643570085177957
 
-n = 17258212916191948536348548470938004244269544560039009244721959293554822498047075403658429865201816363311805874117705688359853941515579440852166618074161313773416434156467811969628473425365608002907061241714688204565170146117869742910273064909154666642642308154422770994836108669814632309362483307560217924183202838588431342622551598499747369771295105890359290073146330677383341121242366368309126850094371525078749496850520075015636716490087482193603562501577348571256210991732071282478547626856068209192987351212490642903450263288650415552403935705444809043563866466823492258216747445926536608548665086042098252335883
-e = 3
-ct = 243251053617903760309941844835411292373350655973075480264001352919865180151222189820473358411037759381328642957324889519192337152355302808400638052620580409813222660643570085177957
+	# We want to find a d such that 3*d = 1 mod phi(n). Since d < phi(n), 3*d < 3*phi(n), and 1 < 3*d trivially. Therefore, 3*d = phi(n)+1 OR 2*phi(n)+1
+	# Now, we know that p and q cannot be 0 mod 3 since they are primes greater than 3.
+	# Furthermore, they cannot be 1 mod 3 because in that case phi(n) would be multuple of 3, and 3 wouldn't have inverse mod phi(n).
+	# Thus, p = q = 2 mod 3 and then n = phi(n) = 1 mod 3, which means that 3*d = 2*phi(n)+1.
+	# Since n < 2*phi(n) < 2*n, we get that 3*d = 2*phi(n)+1-n = n-2(p+q)+3.
+
+
+	# All this development was useless because, since ct = pt^3 mod phi(n), one strategy is to check if the equality holds for the integers.
+	# It is easy to check if a number is a perfect cube by doing a binary search.
+	# And it works for this particular case. FML.
+
+	cbrt_n = 0
+	lo = 0
+	hi = ct
+	while lo < hi-1:
+		# print(lo,hi)
+		mid = (lo+hi)//2
+		cube = mid**3
+		if cube == ct:
+			cbrt_n = mid
+			break
+		if cube < ct:
+			lo = mid
+		else:
+			hi = mid
+
+	assert(cbrt_n**3 == ct)
+	# Since we found x such that x^3 = ct in the integers, it must also be true in any modulo, so x = pt such that pt^e = ct mod phi(n)
+	print(long_to_bytes(cbrt_n))
+
+# After thinking about it, it makes sense that pt^3 = ct in the integers because
+# if you look at the number of bits that represent each number, we can conclude that pt^3 < n/2 < phi(n).
+# n is 2048 bits, so phi(n) will be at least 2047 bits. Now, pt being a string of < 50 bytes, it can be represented with < 8*50 = 400 bits.
+# Therefore, pt^3 will be of < 1200 bits, giving pt^3 < phi(n)
+
+# decrypt_when_e_is_3()
+
+################################################################################
+
+def find_smallest_generator(p):
+	# Since <g> is a subgroup of F_p*, its order must be divisible by the order of F_p*, which is p-1.
+	# Therefore, if it is a proper subgroup, its order must be a proper divisor of p-1.
+	# Also, |<g>| is the smallest positive int r such that g^r = 1 mod p,
+	# so we just have to check that g^d != 1 mod p for each d|p-1 to ensure that g is a generator.
+
+	proper_divisors = []
+	for i in range(2,int(p**.5)+1):
+		if (p-1) % i == 0:
+			proper_divisors.append(i)
+			proper_divisors.append((p-1)//i)
+	# This is not the most efficient way to compute the divisors of p-1, but it's enough for now.
+
+	for g in range(2,p-1):
+		candidate = True
+		for d in proper_divisors:
+			if pow(g,d,p) == 1:
+				candidate = False
+				break
+		if candidate:
+			return g
+
+# print(find_smallest_generator(28151))
+
+##################################################################################
+
+g = 2
+p = 2410312426921032588552076022197566074856950548502459942654116941958108831682612228890093858261341614673227141477904012196503648957050582631942730706805009223062734745341073406696246014589361659774041027169249453200378729434170325843778659198143763193776859869524088940195577346119843545301547043747207749969763750084308926339295559968882457872412993810129130294592999947926365264059284647209730384947211681434464714438488520940127459844288859336526896320919633919
+a = 972107443837033796245864316200458246846904598488981605856765890478853088246897345487328491037710219222038930943365848626194109830309179393018216763327572120124760140018038673999837643377590434413866611132403979547150659053897355593394492586978400044375465657296027592948349589216415363722668361328689588996541370097559090335137676411595949335857341797148926151694299575970292809805314431447043469447485957669949989090202320234337890323293401862304986599884732815
+
+# print(pow(g,a,p))
+
+#################################################################################
+
+A = 70249943217595468278554541264975482909289174351516133994495821400710625291840101960595720462672604202133493023241393916394629829526272643847352371534839862030410331485087487331809285533195024369287293217083414424096866925845838641840923193480821332056735592483730921055532222505605661664236182285229504265881752580410194731633895345823963910901731715743835775619780738974844840425579683385344491015955892106904647602049559477279345982530488299847663103078045601
+b = 12019233252903990344598522535774963020395770409445296724034378433497976840167805970589960962221948290951873387728102115996831454482299243226839490999713763440412177965861508773420532266484619126710566414914227560103715336696193210379850575047730388378348266180934946139100479831339835896583443691529372703954589071507717917136906770122077739814262298488662138085608736103418601750861698417340264213867753834679359191427098195887112064503104510489610448294420720
+B = 518386956790041579928056815914221837599234551655144585133414727838977145777213383018096662516814302583841858901021822273505120728451788412967971809038854090670743265187138208169355155411883063541881209288967735684152473260687799664130956969450297407027926009182761627800181901721840557870828019840218548188487260441829333603432714023447029942863076979487889569452186257333512355724725941390498966546682790608125613166744820307691068563387354936732643569654017172
+# assert(B == pow(g,b,p))
+# print(pow(A,b,p))
+
+#################################################################################
+
+A = 112218739139542908880564359534373424013016249772931962692237907571990334483528877513809272625610512061159061737608547288558662879685086684299624481742865016924065000555267977830144740364467977206555914781236397216033805882207640219686011643468275165718132888489024688846101943642459655423609111976363316080620471928236879737944217503462265615774774318986375878440978819238346077908864116156831874695817477772477121232820827728424890845769152726027520772901423784
+b = 197395083814907028991785772714920885908249341925650951555219049411298436217190605190824934787336279228785809783531814507661385111220639329358048196339626065676869119737979175531770768861808581110311903548567424039264485661330995221907803300824165469977099494284722831845653985392791480264712091293580274947132480402319812110462641143884577706335859190668240694680261160210609506891842793868297672619625924001403035676872189455767944077542198064499486164431451944
+B = 1241972460522075344783337556660700537760331108332735677863862813666578639518899293226399921252049655031563612905395145236854443334774555982204857895716383215705498970395379526698761468932147200650513626028263449605755661189525521343142979265044068409405667549241125597387173006460145379759986272191990675988873894208956851773331039747840312455221354589910726982819203421992729738296452820365553759182547255998984882158393688119629609067647494762616719047466973581
+assert(B == pow(g,b,p))
+secret = pow(A,b,p)
+
+# SOURCE
+
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+import hashlib
+import os
+
+FLAG = b'crypto{????????????????????????????}'
+
+
+def encrypt_flag(shared_secret: int):
+    # Derive AES key from shared secret
+    sha1 = hashlib.sha1()
+    sha1.update(str(shared_secret).encode('ascii'))
+    key = sha1.digest()[:16]
+    # Encrypt flag
+    iv = os.urandom(16)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    ciphertext = cipher.encrypt(pad(FLAG, 16))
+    # Prepare data to send
+    data = {}
+    data['iv'] = iv.hex()
+    data['encrypted_flag'] = ciphertext.hex()
+    return data
+
+# DECRYPT
+
+def is_pkcs7_padded(message):
+    padding = message[-message[-1]:]
+    return all(padding[i] == len(padding) for i in range(0, len(padding)))
+
+
+def decrypt_flag(shared_secret: int, iv: str, ciphertext: str):
+    # Derive AES key from shared secret
+    sha1 = hashlib.sha1()
+    sha1.update(str(shared_secret).encode('ascii'))
+    key = sha1.digest()[:16]
+    # Decrypt flag
+    ciphertext = bytes.fromhex(ciphertext)
+    iv = bytes.fromhex(iv)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    plaintext = cipher.decrypt(ciphertext)
+
+    if is_pkcs7_padded(plaintext):
+        return unpad(plaintext, 16).decode('ascii')
+    else:
+        return plaintext.decode('ascii')
+
+# SOLVE
+
+iv = '737561146ff8194f45290f5766ed6aba'
+ciphertext = '39c99bf2f0c14678d6a5416faef954b5893c316fc3c48622ba1fd6a9fe85f3dc72a29c394cf4bc8aff6a7b21cae8e12c'
+
+# print(decrypt_flag(secret, iv, ciphertext))
+
+############################################################################
+
+
+import socket
+import json
+import random
+
+def parse_DH_response(msg, params, prefix = True):
+	dict_as_string = msg.decode('utf-8').split('\n')[0]
+	dic = json.loads(dict_as_string)
+	response = []
+	for param in params:
+		response.append(bytes_to_long(bytes.fromhex(dic[param][2*prefix:]))) # This tweak is because the hex parameters are sometimes given as "0x2ab4f..." and sometimes as "2ab4f...". So we have to strip that part sometimes.
+	return response
+
+def parameter_injection():
+	HOST = "socket.cryptohack.org"
+	PORT = 13371
+
+	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+	    s.connect((HOST, PORT))
+	    # Intercept message from Alice
+	    print(s.recv(10000))
+	    [p,g,A] = parse_DH_response(s.recv(10000), ['p','g','A'])
+	    # Create an own key pair
+	    c = random.randrange(2,p-1)
+	    C = pow(g,c,p)
+	    secret_with_Alice = pow(A,c,p)
+	    # Send tampered message to Bob
+	    res = bytes("{" + f'"p": "{hex(p)}", "g": "{hex(g)}", "A": "{hex(C)}"' + "}", 'ascii')
+	    s.send(res)
+	    # Intercept message from Bob
+	    print(s.recv(10000))
+	    [B] = parse_DH_response(s.recv(10000), ['B'])
+	    secret_with_Bob = pow(B,c,p)
+	    # Send tampered message to Alice
+	    res = bytes("{" + f'"B": "{hex(C)}"' + "}", 'ascii')
+	    s.send(res)
+	    # Receive encrypted key and decrypt it
+	    assert(len('Intercepted from Alice: ') == 24)
+	    print(s.recv(24))
+	    # flag_msg = s.recv(10000)
+	    [iv, encrypted_flag] = parse_DH_response(s.recv(10000), ["iv", "encrypted_flag"], False)
+	    print(decrypt_flag(secret_with_Alice, hex(iv)[2:], hex(encrypted_flag)[2:]))
+    
+# parameter_injection()
+
+###########################################################################
+
+def export_grade():
+	HOST = "socket.cryptohack.org"
+	PORT = 13379
+
+	with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+	    s.connect((HOST, PORT))
+	    # Intercept message from Alice
+	    print(s.recv(10000))
+	    print(s.recv(10000))
+		
+
+export_grade()
