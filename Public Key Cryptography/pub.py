@@ -267,12 +267,12 @@ import socket
 import json
 import random
 
-def parse_DH_response(msg, params, prefix = True):
+def parse_DH_response(msg, params):
 	dict_as_string = msg.decode('utf-8').split('\n')[0]
 	dic = json.loads(dict_as_string)
 	response = []
 	for param in params:
-		response.append(bytes_to_long(bytes.fromhex(dic[param][2*prefix:]))) # This tweak is because the hex parameters are sometimes given as "0x2ab4f..." and sometimes as "2ab4f...". So we have to strip that part sometimes.
+		response.append(int(dic[param],16)) # This tweak is because the hex parameters are sometimes given as "0x2ab4f..." and sometimes as "2ab4f...". So we have to strip that part sometimes.
 	return response
 
 def parameter_injection():
@@ -302,12 +302,51 @@ def parameter_injection():
 	    assert(len('Intercepted from Alice: ') == 24)
 	    print(s.recv(24))
 	    # flag_msg = s.recv(10000)
-	    [iv, encrypted_flag] = parse_DH_response(s.recv(10000), ["iv", "encrypted_flag"], False)
+	    [iv, encrypted_flag] = parse_DH_response(s.recv(10000), ['iv', 'encrypted_flag'])
 	    print(decrypt_flag(secret_with_Alice, hex(iv)[2:], hex(encrypted_flag)[2:]))
     
 # parameter_injection()
 
 ###########################################################################
+
+def MultipleChineseRemainderTheorem(remainders): # A list of restrictions in the form of (remainder_i, modulo_i)
+	if len(remainders) == 1:
+		return remainders[0]
+	(r1,m1) = remainders[-1]
+	(r2,m2) = remainders[-2]
+	remainders = remainders[:-2]
+	newmod = m1*m2
+	remainders.append(( (r1*m2*pow(m2,-1,m1) + r2*m1*pow(m1,-1,m2)) % newmod , newmod))
+	return MultipleChineseRemainderTheorem(remainders)
+
+assert(MultipleChineseRemainderTheorem([(2,3), (3,4), (1,5)]) == (11,60))
+assert(MultipleChineseRemainderTheorem([(2,3), (0,4)]) == (8,12))
+
+def BabyStepGiantStep(g, A, n, order = 0): # Returns discrete logarithm of A mod n in O(sqrt(n)) space and time complexity
+	# If we know the order of g (|<g>|) we can pass it as a the 'order' variable to restrict
+	# the possible candidates for the exponents. If order == 0, then we treat g as a generator and
+	# all the exponents from 0 to n-1 are candidates.
+	if not order:
+		order = n
+	m = int(order**.5)+1
+	babysteps = {}
+	iterator = 1
+	for j in range(m+1):
+		babysteps[iterator] = j
+		iterator *= g
+		iterator %= n
+	giantstep = pow(g,-m,n)
+	iterator = A
+	step_keys = babysteps.keys()
+	for i in range(m):
+		if iterator in step_keys:
+			return i*m+babysteps[iterator]
+		iterator *= giantstep
+		iterator %= n
+	return None
+
+assert(pow(7894352216,BabyStepGiantStep(7894352216, 355407489, 604604729),604604729) == 355407489)
+assert(BabyStepGiantStep(5,148,221) == 9)
 
 def export_grade():
 	HOST = "socket.cryptohack.org"
@@ -317,7 +356,48 @@ def export_grade():
 	    s.connect((HOST, PORT))
 	    # Intercept message from Alice
 	    print(s.recv(10000))
-	    print(s.recv(10000))
-		
+	    print(s.recv(10000)) # {supported: [...]}
+	    # Respond a restricted set of options
+	    response = b'{"supported": ["DH64"]}' # We send a small prime as the only option to force Bob to choose that one
+	    s.send(response)
+	    # Send the chosen group to Alice
+	    print(s.recv(10000)) # Intercepted from Bob
+	    msg = s.recv(10000)
+	    msg = msg.split(b'\n')[0]
+	    s.send(msg)
+	    # Retrieve parameters from Alice
+	    assert(len('Intercepted from Alice: ') == 24)
+	    print(s.recv(24)) # Intercepted from Alice
+	    msgs = s.recv(10000).split(b'\n') # We intercept the rest of the conversation
+	    print(msgs)
+	    [p,g,A] = parse_DH_response(msgs[0], ['p','g','A']) # The first part contains these parameters from Alice
+	    # Retrieve params from Bob
+	    assert(len('Intercepted from Bob: ') == 22)
+	    [B] = parse_DH_response(msgs[1][22:], ['B']) # The second part contains Bob's public key
+	    # Retrieve iv and flag
+	    [iv,encrypted_flag] = parse_DH_response(msgs[2][24:], ['iv', 'encrypted_flag'])
+	    # Break RSA with small modulo using 'baby-step giant-step' algorithm
+	    # Since we forced them to choose a small p, we can factor p-1, which gives this prime powers as its factors:
+	    factors = [8, 3, 293, 5417, 420233272499] # The prime factorization of p-1 is: 2^3 * 3 * 293 * 5417 * 420233272499
+	    # Now, we will retrieve 'a' from g^a mod p the following way:
+	    # Since phi(p) = p-1, 'a' is a remainder modulo p-1, so it can be recovered with all the remainders a mod p_i 
+	    # for p_i being a factor of p-1. Thus, we can recover 'a' by knowing a mod p_i for all p_i
+	    # in the 'factors' array, by using the CRT. So we want 'a mod p_i for p_i in factors'.
+	    # Now, given some p_i, if q_i = (p-1)/p_i, we have that A^q_i = g^(q_i*a) = (g^q_i)^a. But now g^q_i is
+	    # an element of order p_i in the group, so we can retrieve a mod p_i in O(sqrt(p_i)) by doing BSGS with
+	    # g^q_i as a generator and A^q_i as our target number to perform the discrete logarithm.
+	    # This is because in the equation A^q_i = (g^q_i)^a, 'a' is a remainder mod p_i since the order of g^q_i is p_i.
+	    # Therefore, a Meet-in-the-middle idea such as the one in BSGS allows us to find the DL in a reasonable time.
+	    # Another way to think this is that the group generated by g^q_i has order p_i, so the exact same idea from the classic BSGS works.
+	    remainders = []
+	    for p_i in factors:
+	    	cofactor = (p-1)//p_i
+	    	print(f"Performing BSGS with {p_i}.")
+	    	r_i = BabyStepGiantStep(pow(g,cofactor,p),pow(A,cofactor,p),p,p_i)
+	    	remainders.append((r_i,p_i))
+	    a = MultipleChineseRemainderTheorem(remainders)[0]
+	    assert(pow(g,a,p) == A)
+	    secret = pow(B,a,p)
+	    print(decrypt_flag(secret, hex(iv)[2:], hex(encrypted_flag)[2:]))
 
-export_grade()
+# export_grade()
