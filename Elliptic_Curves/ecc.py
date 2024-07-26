@@ -96,6 +96,7 @@ assert(curve.add(Y,X).export() == (1024,4440))
 assert(curve.add(X,X).export() == (7284,2107))
 assert(curve.add(X,X.negative()).export() == (None,None))
 assert(curve.add(X,O) == X)
+assert(curve.add(O,X) == X)
 
 P = ECPoint(curve, 493, 5564)
 Q = ECPoint(curve, 1539, 4742)
@@ -221,15 +222,117 @@ class MontgomeryEllipticCurve():
 			bits.append(k&1)
 			k //= 2
 		bits = bits[::-1]
+		bits = bits[1:]
 		for bit in bits:
 			if bit:
-				R0, R1 = (self.add(R0,R1),self.add(R1,R1))
+				(R0, R1) = (self.add(R0,R1),self.add(R1,R1))
 			else:
-				R0, R1 = (self.add(R0,R0),self.add(R0,R1))
+				(R0, R1) = (self.add(R0,R0),self.add(R0,R1))
 		return R0
 
 
 curve = MontgomeryEllipticCurve(486662, 1, (1<<255)-19)
 G = curve.from_x_coordinate(9)
 Q = curve.Montgomerys_binary_algorithm(0x1337c0decafe,G)
-print(Q.x)
+assert(Q.x == 49231350462786016064336756977412654793383964726771892982507420921563002378152)
+
+# Here's an explanation on why this binary algorithm works, as well as a code that illustrates this by doing it to
+# plain numbers instead of EC points.
+
+def binary_algorithm_explanation(k):
+	# At each step, R0 will be the prefix of k written in binary and R1 will be R0+1.
+	# In other words: at iteration i of the loop, R0's binary representation will be the first i+1 bits of k.
+	# If the upcoming bit is a 0, we just have to double R0 (and add R0 to R1 to maintain the invariant).
+	# If it is a 1, we have to double R0 and add 1, or add R1, which is the same as R0+1 (and double R1 to maintain the invariant).
+	R0, R1 = (1, 2)
+	bits = []
+	while k > 0:
+		bits.append(k&1)
+		k //= 2
+	bits = bits[::-1]
+	bits = bits[1:]
+	for bit in bits:
+		if bit:
+			(R0, R1) = (R0+R1,2*R1)
+		else:
+			(R0, R1) = (2*R0,R0+R1)
+		print(f"R0: {R0}, R1: {R1}")
+	return R0
+
+# binary_algorithm_explanation(11)
+
+###################################################################
+
+from Crypto.Cipher import AES
+from Crypto.Util.number import inverse
+from Crypto.Util.Padding import pad, unpad
+from collections import namedtuple
+from random import randint
+import hashlib
+import os
+
+def gen_shared_secret(curve, Q: tuple, n: int):
+    # Bob's Public key, my secret int
+    S = curve.multiply(n, Q)
+    return S.x
+
+
+def encrypt_flag(shared_secret: int):
+    # Derive AES key from shared secret
+    sha1 = hashlib.sha1()
+    sha1.update(str(shared_secret).encode('ascii'))
+    key = sha1.digest()[:16]
+    # Encrypt flag
+    iv = os.urandom(16)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    ciphertext = cipher.encrypt(pad(FLAG, 16))
+    # Prepare data to send
+    data = {}
+    data['iv'] = iv.hex()
+    data['encrypted_flag'] = ciphertext.hex()
+    return data
+
+# Define the curve
+p = 310717010502520989590157367261876774703
+a = 2
+b = 3
+curve = WeierstrassEllipticCurve(a,b,p)
+
+# Generator
+g_x = 179210853392303317793440285562762725654
+g_y = 105268671499942631758568591033409611165
+G = ECPoint(curve, g_x, g_y)
+
+# # My secret int, different every time!!
+# n = randint(1, p)
+
+# # Send this to Bob!
+# public = curve.multiply(n, G)
+# print("public:", public.export())
+
+# Bob's public key
+b_x = 272640099140026426377756188075937988094
+b_y = 51062462309521034358726608268084433317
+B = ECPoint(curve, b_x, b_y)
+
+# # Calculate Shared Secret
+# shared_secret = gen_shared_secret(curve, B, n)
+
+# # Send this to Bob!
+# ciphertext = encrypt_flag(shared_secret)
+# print(ciphertext)
+
+
+output = {'iv': '07e2628b590095a5e332d397b8a59aa7', 'encrypted_flag': '8220b7c47b36777a737f5ef9caa2814cf20c1c1ef496ec21a9b4833da24a008d0870d3ac3a6ad80065c138a2ed6136af'}
+public = ECPoint(curve, 280810182131414898730378982766101210916, 291506490768054478159835604632710368904)
+
+# I used sage to calculate the order of the elliptic curve, which gave me:
+order = 310717010502520989590206149059164677804
+# Now, I can use Pohlig–Hellman.
+# I factored this order and gave me these factors:
+factors = [4, 3**7, 139, 165229, 31850531, 270778799, 179317983307]
+factors_check = 1
+for fact in factors:
+	factors_check *= fact
+assert(factors_check == order)
+assert(curve.multiply(order,G).export() == (None,None))
