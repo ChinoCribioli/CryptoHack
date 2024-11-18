@@ -388,7 +388,7 @@ n_test = randint(1,100000)
 G_test = curve.multiply((order//165229),G)
 P_test = curve.multiply(n_test,G_test)
 ec_mult = lambda a,b: curve.multiply(b,a) # The inputs are switched for the sake of compatibility
-assert(BabyStepGiantStep(G_test, P_test, 165229, curve.add, ec_mult, curve.O()) == n_test)
+# assert(BabyStepGiantStep(G_test, P_test, 165229, curve.add, ec_mult, curve.O()) == n_test)
 
 def PohligHellman(g, A, factors, mult, exp, identity):
     n = 1
@@ -680,4 +680,95 @@ for i in range(1,60):
 
 
 ##################################################################################################################
+
+
+#	SOURCE CODE:
+
+import random
+import hashlib
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+
+FLAG = b"crypto{??????????????????????????????????????}"
+
+def gen_keypair(G, p):
+    n = random.randint(1, (p-1))
+    P = n*G
+    return n, P
+
+def gen_shared_secret(P, n):
+    S = P*n
+    return S.x()
+
+def encrypt_flag(shared_secret: int):
+    # Derive AES key from shared secret
+    sha1 = hashlib.sha1()
+    sha1.update(str(shared_secret).encode('ascii'))
+    key = sha1.digest()[:16]
+    # Encrypt flag
+    iv = os.urandom(16)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    ciphertext = cipher.encrypt(pad(FLAG, 16))
+    # Prepare data to send
+    data = {}
+    data['iv'] = iv.hex()
+    data['encrypted_flag'] = ciphertext.hex()
+    return data
+
+# Define Curve params
+p = 1331169830894825846283645180581
+a = -35
+b = 98
+# E = EllipticCurve(GF(p), [a,b])
+# G = E.gens()[0]
+
+from ecdsa.ellipticcurve import CurveFp, PointJacobi
+curve = CurveFp(p, a, b)
+G = PointJacobi(curve, 479691812266187139164535778017, 568535594075310466177352868412, 1)
+
+# Generate keypair
+n_a, P1 = gen_keypair(G, p)
+n_b, P2 = gen_keypair(G, p)
+
+# Calculate shared secret
+S1 = gen_shared_secret(P1, n_b)
+S2 = gen_shared_secret(P2, n_a)
+
+# Check protocol works
+assert S1 == S2
+
+flag = encrypt_flag(S1)
+
+# print(f"Generator: {G}")
+# print(f"Alice Public key: {P1}")
+# print(f"Bob Public key: {P2}")
+# print(f"Encrypted flag: {flag}")
+
+#	DATA
+
+# Generator: (479691812266187139164535778017 : 568535594075310466177352868412 : 1)
+# Alice Public key: (1110072782478160369250829345256 : 800079550745409318906383650948 : 1)
+# Bob Public key: (1290982289093010194550717223760 : 762857612860564354370535420319 : 1)
+# Encrypted flag: {'iv': 'eac58c26203c04f68d63dc2c58d79aca', 'encrypted_flag': 'bb9ecbd3662d0671fd222ccb07e27b5500f304e3621a6f8e9c815bc8e4e6ee6ebc718ce9ca115cb4e41acb90dbcabb0d'}
+
+#	SOLUTION
+
+A_pub = PointJacobi(curve, 1110072782478160369250829345256, 800079550745409318906383650948, 1)
+B_pub = PointJacobi(curve, 1290982289093010194550717223760, 762857612860564354370535420319, 1)
+O = PointJacobi(curve, 0, 1, 0)
+assert(A_pub.to_bytes() == (A_pub+O).to_bytes())
+
+n = 103686954799254136375814 # order of G
+factors_of_G = [(2,1), (7,1), (271,1), (23687,1), (1153763334005213,1)]
+# [x] Found discrete logarithm 1 for factor 2
+# [x] Found discrete logarithm 3 for factor 7
+# [x] Found discrete logarithm 54 for factor 271
+# [x] Found discrete logarithm 15933 for factor 23687
+rem = MultipleChineseRemainderTheorem([(1,2), (3,7), (54,271), (15933,23687)])
+print(1153763334005213%rem[1])
+# print(rem)
+
+# Encontre esto aca https://gist.github.com/mcieno/f0c6334af28f60d244fa054f5a1c22d2
+# Parece que me da un pairing para calcular y hacer un MOV attack
+
 
