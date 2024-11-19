@@ -753,22 +753,36 @@ flag = encrypt_flag(S1)
 
 #	SOLUTION
 
-A_pub = PointJacobi(curve, 1110072782478160369250829345256, 800079550745409318906383650948, 1)
+# I created a script in sage (movAttack.sage) that performs a mov attack on the point A, which gave that Alice's private key is
+a = 29618469991922269 
 B_pub = PointJacobi(curve, 1290982289093010194550717223760, 762857612860564354370535420319, 1)
-O = PointJacobi(curve, 0, 1, 0)
-assert(A_pub.to_bytes() == (A_pub+O).to_bytes())
 
-n = 103686954799254136375814 # order of G
-factors_of_G = [(2,1), (7,1), (271,1), (23687,1), (1153763334005213,1)]
-# [x] Found discrete logarithm 1 for factor 2
-# [x] Found discrete logarithm 3 for factor 7
-# [x] Found discrete logarithm 54 for factor 271
-# [x] Found discrete logarithm 15933 for factor 23687
-rem = MultipleChineseRemainderTheorem([(1,2), (3,7), (54,271), (15933,23687)])
-print(1153763334005213%rem[1])
-# print(rem)
+shared_secret = gen_shared_secret(B_pub, a)
+data = {'iv': 'eac58c26203c04f68d63dc2c58d79aca', 'encrypted_flag': 'bb9ecbd3662d0671fd222ccb07e27b5500f304e3621a6f8e9c815bc8e4e6ee6ebc718ce9ca115cb4e41acb90dbcabb0d'}
 
-# Encontre esto aca https://gist.github.com/mcieno/f0c6334af28f60d244fa054f5a1c22d2
-# Parece que me da un pairing para calcular y hacer un MOV attack
+def decrypt_flag(data, shared_secret: int):
+    # Derive AES key from shared secret
+    sha1 = hashlib.sha1()
+    sha1.update(str(shared_secret).encode('ascii'))
+    key = sha1.digest()[:16]
+    # Decrypt flag
+    iv = bytes.fromhex(data['iv'])
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    flag = cipher.decrypt(bytes.fromhex(data['encrypted_flag']))
+    return flag
+
+    # Encrypt flag
+    iv = os.urandom(16)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    ciphertext = cipher.encrypt(pad(FLAG, 16))
+    # Prepare data to send
+    data = {}
+    data['iv'] = iv.hex()
+    data['encrypted_flag'] = ciphertext.hex()
+    return data
+
+print(decrypt_flag(data, shared_secret))
 
 
+# DATAZO: Si p es 1153763334005213, el factor mas grande de la factorizacion del orden de G, cumple que
+# p-1 = 2^2 * 7 * 271^2 * 23687^2, que son todos tambien factores del orden de G
