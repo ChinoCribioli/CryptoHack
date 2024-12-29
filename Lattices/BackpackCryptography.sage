@@ -81,14 +81,19 @@ encrypted_flag = 456907528332996262768605658489301833080169467863758598062943466
 # since a_i^2 = 1. Therefore, each a_i will tell us the i-th bit of the hidden message.
 
 m = []
+# I extracted these values to variables because I wanted to experiment with them. The values 2 and 1 seemed quite arbitraty to me.
+# Which combination of values make the LLL algorithm find the solution where each word is used at most once?
+# Aside from (2,1), (3,1) and (4,2) work. I still can't see a pattern.
+words_weight = 2
+flag_weight = 1
 
 for i in range(272):
   row = [0 for _ in range(273)]
   row[272] = pub_key[i]
-  row[i] = 2 
+  row[i] = words_weight 
   m.append(row)
 
-row = [1 for i in range(273)]
+row = [flag_weight for i in range(273)]
 row[272] = encrypted_flag
 m.append(row)
 
@@ -100,7 +105,7 @@ short_vector = []
 for i in range(273):
   isCorrect = True
   for j in range(272):
-    if ans[i][j] != 1 and ans[i][j] != -1:
+    if ans[i][j] != flag_weight and ans[i][j] != flag_weight - words_weight:
       isCorrect = False
       break
   if ans[i][272] != 0:
@@ -110,20 +115,20 @@ for i in range(273):
     break
 
 print(short_vector)
-# I have to reverse the bit array given the way I defined the lattice
+if short_vector == []:
+  print(ans)
+assert short_vector != []
+# I have to reverse the bit array given the way I defined the lattice. And I throw away the last coordinate since is 0 and we won't use it anymore.
 short_vector = [short_vector[271-i] for i in range(272)]
 
 bit_string = '0b'
 for i in range(272):
-    bit_string += '1' if short_vector[i] == -1 else '0'
+    bit_string += '1' if short_vector[i] == flag_weight - words_weight else '0'
 
 message_int = int(bit_string, 2)
 message = bytes.fromhex(hex(message_int)[2:])
 
 print(message)
-
-
-
 
 
 
