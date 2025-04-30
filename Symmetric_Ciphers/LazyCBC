@@ -1,0 +1,4 @@
+Since 00000000000000000000000000000000 decrypts to 4287f39b5b34bea3fe5aebc42a21284f, we know that 4287f39b5b34bea3fe5aebc42a21284f encrypts to 00000000000000000000000000000000
+Since they are using the key as iv, if I send the string 4287f39b5b34bea3fe5aebc42a21284f | 00000000000000000000000000000000 to encrypt, the encryption will be 
+00000000000000000000000000000000 | Enc(key).
+Thus, we just have to send the second part of that ciphertext to decrypt, obtaining the key.
