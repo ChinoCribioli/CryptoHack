@@ -45,7 +45,7 @@ for l in range(1,28):
     m = []
     for i, p in enumerate(PRIMES[:l]):
         row = [0 for _ in range(28)]
-        row[0] = math.floor(Decimal(int(PRIMES[i])).sqrt() * int(2**256))
+        row[0] = math.floor(Decimal(int(PRIMES[i])).sqrt() * int(2**256)) # We want these numbers to be as precise as we can for the calculations to be accurate
         row[i+1] = -1
         m.append(row)
 
