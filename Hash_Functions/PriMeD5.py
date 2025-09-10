@@ -63,8 +63,8 @@ class Challenge():
 ### SOLUTION
 
 
-# First, we consider a collision that I took from stackexchange. The plaintexts have to be short (1 block) since the numbers we get from them
-# must have a bit_length <= 1024.
+# First, we consider a collision that I took from stackexchange. https://stackoverflow.com/questions/1999824/whats-the-shortest-pair-of-strings-that-causes-an-md5-collision
+# The plaintexts have to be short (1 block) since the numbers we get from them must have a bit_length <= 1024.
 
 m1 = bytes.fromhex("0e306561559aa787d00bc6f70bbdfe3404cf03659e704f8534c00ffb659c4c8740cc942feb2da115a3f4155cbb8607497386656d7d1f34a42059d78f5a8dd1ef")
 m2 = bytes.fromhex("0e306561559aa787d00bc6f70bbdfe3404cf03659e744f8534c00ffb659c4c8740cc942feb2da115a3f415dcbb8607497386656d7d1f34a42059d78f5a8dd1ef")
