@@ -4,6 +4,19 @@ import json
 HOST = "socket.cryptohack.org"
 PORT = 13403 
 
+from pwn import * # pip install pwntools
+import json
+
+r = remote(HOST, PORT)
+
+def json_recv():
+    line = r.recvline()
+    return json.loads(line.decode())
+
+def json_send(message):
+    request = json.dumps(message).encode()
+    r.sendline(request)
+
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
     socket.connect((HOST, PORT))
     
