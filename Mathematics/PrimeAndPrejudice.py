@@ -79,8 +79,11 @@ class Challenge():
 
 ### SOLUTION
 
-# https://eprint.iacr.org/2018/749.pdf
-# https://github.com/dangnguyenphuc/cryptohack/blob/master/math/primes.py#L199
+# We are going to implement Arnault's Method to construct pseudoprimes to a set of fixed bases.
+# This method is outlined starting on page 25 of the paper "Prime and Prejudice: Primality Testing Under Adversarial Conditions",
+# which can be found at https://eprint.iacr.org/2018/749.pdf or in this repository.
+# The fixed set of bases will be the primes smaller than 64, given that the 'generate_basis' method 
+# returns that set to use as witnesses for the Miller-Rabin primality test.
 
 from Crypto.Util.number import getPrime, isPrime, inverse, bytes_to_long, long_to_bytes
 
@@ -121,7 +124,7 @@ for a in test_S_a:
     try:
         assert(sorted(calculate_S_a(a)) == correct[a])
     except:
-        print(a)
+        print(f"Error: Incorrect S_{a}")
 
 def gcd(a,b):
     if a > b:
@@ -130,6 +133,7 @@ def gcd(a,b):
         return b 
     return gcd(b%a, a)
 
+# Chinese Reminder Theorem implementation
 def crt(constraints):
 	if len(constraints) == 1:
 		return constraints[0]
@@ -141,7 +145,8 @@ def crt(constraints):
 	constraints.append(( (r1*m2*pow(m2,-1,m1) + r2*m1*pow(m1,-1,m2)) % newmod , newmod))
 	return crt(constraints)
 
-def check_p1(p1, k):
+# This method is to check whether, given the coefficients k, the p1 is useful
+def is_valid_p1(p1, k):
     p = [k_i*(p1-1) + 1 for k_i in k]
     for p_i in p:
         if not isPrime(p_i):
@@ -152,17 +157,17 @@ def check_p1(p1, k):
     if n.bit_length() <= 600:
         return False 
     if n.bit_length() > 900:
-        print("Reached upper bound and didn't find a suitable p1")
+        print("Error: Reached upper bound and didn't find a suitable p1")
         return False
     return miller_rabin(n,64)
-    # return True
 
 def arnaults_method(b):
     bases = generate_basis(b)
     max_bit_length = bases[-1].bit_length()
-    # For now, we will use fixed primes to have more control of the execution
+    # For now, we will use fixed primes
     k = [1, 101, 193]
     k = [1, 67, 157]
+    # If we want to generate new random k coefficients, uncomment the next two lines
     # k = [1, getPrime(max_bit_length+1), getPrime(max_bit_length+2)]
     # print(f"k: {k}")
     S = []
@@ -172,14 +177,15 @@ def arnaults_method(b):
         for k_i in k:
             S_a = S_a.intersection({ inverse(k_i,4*a)*(p+k_i-1) % (4*a) for p in aux_S_a})
         S.append(S_a)
-    # MEJORA: Cambiar la funcion de simbolo de legendre para que se calcule bien en el caso de p no-primo
 
-    # The paper sets the initial conditions as k2^{-1} mod k3 and k2^{-1} mod k2,
-    # but in the example it sets them to -k2^{-1} mod k3 and -k3^{-1} mod k2.
+    # The paper says that the initial conditions are k_2^{-1} mod k_3 and k_2^{-1} mod k_2,
+    # but in the example it says they are -k_2^{-1} mod k_3 and -k_3^{-1} mod k_2.
     # We tried both and only the latter works, so I guess this is another mistake in the article.
     conditions = [(inverse(-k[1],k[2]), k[2]), (inverse(-k[2],k[1]), k[1])]
 
     # We check wether the posible sets enable us a consistent congruence mod 4.
+    # Since all the other constraints' moduli are distinct primes, this would be the only
+    # thing preventing us to find a suitable condition that meets all the modular constraints.
     isOnly1 = False
     isOnly3 = False
     for S_a in S:
@@ -219,7 +225,7 @@ def arnaults_method(b):
     # print(f"Initial modular constraints to p1:\nReminder: {p1}\nModulus: {m}")
 
     p1 += m * (1<<(198 - m.bit_length()))
-    while not check_p1(p1, k):
+    while not is_valid_p1(p1, k):
         p1 += m
 
     n = 1 
@@ -244,7 +250,7 @@ import json
 HOST = "socket.cryptohack.org"
 PORT = 13385 
 
-from pwn import * # pip install pwntools
+from pwn import *
 import json
 
 r = remote(HOST, PORT)
