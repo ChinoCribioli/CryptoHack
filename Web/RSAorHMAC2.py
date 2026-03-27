@@ -107,15 +107,15 @@ characters = string.ascii_letters + string.digits
 def gen_random_string(l = 100):
     return ''.join(random.choices(characters, k=l))
 
-real_n = 45835243625
+real_n = 357
 
 # n = 3425857033280044914259085670712728675552904168873734088180300071832242196744850195411499785716960160133385039072657452525635067756239590369863290664551330431156681891604435821390881006671902601932176479606099211077402385185556711332328797693769946317450561388682777410600840836594619855276519432184902415837713340176617745778886309141883273468139197127277221663250354818846746191176521155357431087560269161809368511360403750713103822323557576050230271470677644089048291433474038474093449548902173483664414997470215475946172748346979365495241718859267006233893078431217389164683080609429916813844145942577115557304673
 # t = 2048
 n = 1 
-t = 1
+t = 2
 mod = 2**(t+1)
 # while t < 2048:
-while t < 26:
+while t < 9:
     pow2 = mod // 2
     s = gen_random_string()
     a = jwt_hash_for_rs256(s)
@@ -127,27 +127,42 @@ while t < 26:
     k_t = ( r * pow(n, -1, pow2) ) % (pow2)
     assert(k_t % 2 != 0)
 
-    candidate = ((r - k_t*n) % mod) * pow(k_t, -1, mod)
-    candidate %= mod
-    if candidate == 0 or candidate == pow2:
-        # the next bit of k was 0
-        pass 
-    else:
-        # the next bit of k was 1
-        k = k_t + pow2
-        candidate = ((r - k*n) % mod) * pow(k, -1, mod)
-        candidate %= mod
-        assert(candidate == 0 or candidate == pow2)
+    candidates = []
+    for i in range(2):
+        for j in range(2):
+            if ((i*pow2 + k_t)*(j*pow2 + n)) % mod == r:
+                candidates.append((i,j))
 
-    if candidate == 0:
-        # the next bit of n is 0 
-        t += 1 
-        mod *= 2 
-    else:
-        # the next bit of n is 1 
-        n += pow2
-        t += 1 
-        mod *= 2
+    if len(candidates) != 1:
+        print(f"retry. n:{n}, t:{t}")
+        continue
+    n += candidates[0][1]*pow2
+
+    t += 1 
+    mod *= 2 
+
+
+    # candidate = ((r - k_t*n) % mod) * pow(k_t, -1, mod)
+    # candidate %= mod
+    # if candidate == 0 or candidate == pow2:
+    #     # the next bit of k was 0
+    #     pass 
+    # else:
+    #     # the next bit of k was 1
+    #     k = k_t + pow2
+    #     candidate = ((r - k*n) % mod) * pow(k, -1, mod)
+    #     candidate %= mod
+    #     assert(candidate == 0 or candidate == pow2)
+    #
+    # if candidate == 0:
+    #     # the next bit of n is 0 
+    #     t += 1 
+    #     mod *= 2 
+    # else:
+    #     # the next bit of n is 1 
+    #     n += pow2
+    #     t += 1 
+    #     mod *= 2
 
     print(t, n)
 
