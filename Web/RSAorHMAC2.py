@@ -62,8 +62,8 @@ def base64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 def jwt_hash_for_rs256(username: str) -> int:
-    header = {"alg": "RS256", "typ": "JWT"}
-    payload = {"username": username, "admin": False}
+    header = {'alg': 'RS256', 'typ': 'JWT'}
+    payload = {'username': username, 'admin': False}
 
     header_b64 = base64url(json.dumps(header, separators=(',',':')).encode())
     payload_b64 = base64url(json.dumps(payload, separators=(',',':')).encode())
@@ -107,6 +107,45 @@ characters = string.ascii_letters + string.digits
 def gen_random_string(l = 100):
     return ''.join(random.choices(characters, k=l))
 
+
+import gmpy2
+from math import gcd
+
+def recover_n(num_samples=2):
+    values = []
+
+    for _ in range(num_samples):
+        s = gen_random_string()
+        a = jwt_hash_for_rs256(s)
+        x = int_signature_from_jwt(create_session_and_obtain_jwt(s))
+
+        x = gmpy2.mpz(x)
+        a = gmpy2.mpz(a)
+        print(f"a: {a}\nx:{x}")
+
+        # calcular x^e (entero grande)
+        val = pow(a, 65537)  # powmod(..., 0) = potencia exacta
+        print(f"val bit_length: {val.bit_length()}")
+
+        diff = val - x
+        values.append(diff)
+
+    # tomar gcd iterativo
+    n = values[0]
+    for v in values[1:]:
+        n = gmpy2.gcd(n, v)
+
+    return n
+
+print("empiezo")
+print(f"n: {recover_n(5)}")
+
+assert(False)
+
+
+
+
+
 real_n = 357
 
 # n = 3425857033280044914259085670712728675552904168873734088180300071832242196744850195411499785716960160133385039072657452525635067756239590369863290664551330431156681891604435821390881006671902601932176479606099211077402385185556711332328797693769946317450561388682777410600840836594619855276519432184902415837713340176617745778886309141883273468139197127277221663250354818846746191176521155357431087560269161809368511360403750713103822323557576050230271470677644089048291433474038474093449548902173483664414997470215475946172748346979365495241718859267006233893078431217389164683080609429916813844145942577115557304673
@@ -126,6 +165,7 @@ while t < 9:
         continue
     k_t = ( r * pow(n, -1, pow2) ) % (pow2)
     assert(k_t % 2 != 0)
+    assert(k_t < pow2 and n < pow2)
 
     candidates = []
     for i in range(2):
@@ -134,7 +174,8 @@ while t < 9:
                 candidates.append((i,j))
 
     if len(candidates) != 1:
-        print(f"retry. n:{n}, t:{t}")
+        print(f"retry, {len(candidates)} candidates. n:{n}, t:{t}")
+        print(candidates)
         continue
     n += candidates[0][1]*pow2
 
