@@ -73,7 +73,7 @@ def jwt_hash_for_rs256(username: str) -> int:
     digest = hashlib.sha256(signing_input.encode()).digest()
     hash_int = int.from_bytes(digest, "big")
 
-    return hash_int
+    return (hash_int, signing_input)
 
 import requests
 def create_session_and_obtain_jwt(username):
@@ -104,7 +104,7 @@ import random
 import string
 characters = string.ascii_letters + string.digits
 
-def gen_random_string(l = 100):
+def gen_random_string(l = 30):
     return ''.join(random.choices(characters, k=l))
 
 
@@ -116,8 +116,11 @@ def recover_n(num_samples=2):
 
     for _ in range(num_samples):
         s = gen_random_string()
-        a = jwt_hash_for_rs256(s)
-        x = int_signature_from_jwt(create_session_and_obtain_jwt(s))
+        (a, session_info) = jwt_hash_for_rs256(s)
+        session_jwt = create_session_and_obtain_jwt(s)
+        session_parts = session_jwt.split('.')
+        assert(session_info == f"{session_parts[0]}.{session_parts[1]}")
+        x = int_signature_from_jwt(session_jwt)
 
         x = gmpy2.mpz(x)
         a = gmpy2.mpz(a)
