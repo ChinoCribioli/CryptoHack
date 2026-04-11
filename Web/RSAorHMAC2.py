@@ -70,8 +70,15 @@ def jwt_hash_for_rs256(username: str) -> int:
 
     signing_input = f"{header_b64}.{payload_b64}"
 
-    digest = hashlib.sha256(signing_input.encode()).digest()
-    hash_int = int.from_bytes(digest, "big")
+    from Crypto.Signature import pkcs1_15
+    from Crypto.Hash import SHA256
+
+    hash = SHA256.new(signing_input.encode()) # encode('ascii') ??
+    padded = pkcs1_15._EMSA_PKCS1_V1_5_ENCODE(hash, 256)
+    hash_int = int.from_bytes(padded, "big")
+
+    # digest = hashlib.sha256(signing_input.encode()).digest()
+    # hash_int = int.from_bytes(digest, "big")
 
     return (hash_int, signing_input)
 
@@ -104,14 +111,14 @@ import random
 import string
 characters = string.ascii_letters + string.digits
 
-def gen_random_string(l = 30):
+def gen_random_string(l = 10):
     return ''.join(random.choices(characters, k=l))
 
 
 import gmpy2
 from math import gcd
 
-def recover_n(num_samples=2):
+def recover_n(num_samples=2, e = 65537):
     values = []
 
     for _ in range(num_samples):
@@ -127,7 +134,7 @@ def recover_n(num_samples=2):
         print(f"a: {a}\nx:{x}")
 
         # calcular x^e (entero grande)
-        val = pow(a, 65537)  # powmod(..., 0) = potencia exacta
+        val = pow(a, e)  # powmod(..., 0) = potencia exacta
         print(f"val bit_length: {val.bit_length()}")
 
         diff = val - x
@@ -141,7 +148,7 @@ def recover_n(num_samples=2):
     return n
 
 print("empiezo")
-print(f"n: {recover_n(5)}")
+print(f"n: {recover_n(2)}")
 
 assert(False)
 
