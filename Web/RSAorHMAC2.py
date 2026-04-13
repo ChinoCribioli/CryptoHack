@@ -134,10 +134,10 @@ def recover_n(num_samples=2, e = 65537):
         print(f"a: {a}\nx:{x}")
 
         # calcular x^e (entero grande)
-        val = pow(a, e)  # powmod(..., 0) = potencia exacta
+        val = pow(x, e)  # powmod(..., 0) = potencia exacta
         print(f"val bit_length: {val.bit_length()}")
 
-        diff = val - x
+        diff = val - a
         values.append(diff)
 
     # tomar gcd iterativo
@@ -148,7 +148,7 @@ def recover_n(num_samples=2, e = 65537):
     return n
 
 print("empiezo")
-print(f"n: {recover_n(2)}")
+print(f"n: {recover_n(4)}")
 
 assert(False)
 
