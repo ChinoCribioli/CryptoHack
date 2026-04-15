@@ -6,16 +6,21 @@
 # Without that pk it will be infeasible to try to forge the HS256 signature since it will mean finding a collision of SHA256. So I have to find pk.
 
 # Now, this pk, is a .pem file that depends only on the exponent e and the modulus n. We assume that e = 65537 since it is the standard.
-# Thus, we have to find n. Now, since it is the modulus, we know that n is greater than any signature we obtain from the 'create_session' endpoint.
-# So we can use this as an oracle to get any number of signatures we want and bound n.
+# Thus, we have to find n.
 
+import json
+import base64
+import requests
+import random
+import string
+import gmpy2
+import jwt
 from Crypto.PublicKey import RSA
-# from Crypto.Util.number import getPrime
-
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 
-def serialize_pem_key(n: int, e: int = 65537, output_file: str = "Web/rsa-or-hmac-2-public.pem"):
+# Given a public key pair (n,e), serialize it and store it in pem format in a file
+def public_key_to_pem_format(n: int, e: int = 65537):
     public_numbers = rsa.RSAPublicNumbers(e, n)
     public_key = public_numbers.public_key()
 
@@ -23,13 +28,13 @@ def serialize_pem_key(n: int, e: int = 65537, output_file: str = "Web/rsa-or-hma
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.PKCS1
     )    
+    return pem
 
+def serialize_pem_key(n: int, e: int = 65537, output_file: str = "rsa-or-hmac-2-public.pem"):
     with open(output_file, "wb") as f:
-        f.write(pem)
+        f.write(public_key_to_pem_format(n))
     
-    print(pem.decode())
-
-def parse_rsa_public_pem(filename: str = "Web/rsa-or-hmac-2-public.pem"):
+def parse_rsa_public_pem(filename: str = "rsa-or-hmac-2-public.pem"):
     with open(filename, "r") as f:
         pem_data = f.read()
 
@@ -40,11 +45,8 @@ def parse_rsa_public_pem(filename: str = "Web/rsa-or-hmac-2-public.pem"):
 
     return n, e
 
-# serialize_pem_key(getPrime(20)*getPrime(23))
-# print(parse_rsa_public_pem())
 
-import base64
-
+# Methods for base64 conversions:
 def base64url_to_int(b64url_str: str) -> int:
     rem = len(b64url_str) % 4
     if rem > 0:
@@ -61,12 +63,11 @@ def int_signature_from_jwt(jwt_token: str) -> int:
 
     return base64url_to_int(parts[2])
 
-import json
-import hashlib
-
 def base64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
+
+# Given a username, get the bytearray (as input) that will be signed by rsa
 def jwt_hash_for_rs256(username: str) -> int:
     header = {'alg': 'RS256', 'typ': 'JWT'}
     payload = {'username': username, 'admin': False}
@@ -79,19 +80,14 @@ def jwt_hash_for_rs256(username: str) -> int:
     from Crypto.Signature import pkcs1_15
     from Crypto.Hash import SHA256
 
-    hash = SHA256.new(signing_input.encode()) # encode('ascii') ??
+    hash = SHA256.new(signing_input.encode())
     padded = pkcs1_15._EMSA_PKCS1_V1_5_ENCODE(hash, 256)
     hash_int = int.from_bytes(padded, "big")
 
-    # digest = hashlib.sha256(signing_input.encode()).digest()
-    # hash_int = int.from_bytes(digest, "big")
-
     return (hash_int, signing_input)
 
-import requests
 def create_session_and_obtain_jwt(username):
     base_url = "https://web.cryptohack.org/rsa-or-hmac-2/"
-    
     endpoint = f"create_session/{username}/"
     url = base_url + endpoint
     
@@ -104,39 +100,40 @@ def create_session_and_obtain_jwt(username):
         return None
 
 
-import random
-import string
 characters = string.ascii_letters + string.digits
-
 def gen_random_string(l = 10):
     return ''.join(random.choices(characters, k=l))
 
-
-import gmpy2
-from math import gcd
-
-def recover_n(num_samples=2, e = 65537):
+# Recover the n of the RSA public key by doing the following trick:
+# We know that the default e that openssl sets is e = 65537, so we only have to find n.
+# Now, given a number x to sign by RSA, the signature is a = x^d mod n. We know
+# that this d is such that a^e mod n = x. 
+# Now, if we have x, e, and a, we know that a^e - x is a multiple of n, since a^e and x
+# both have the same remainder mod n. So we grab a bunch of x's and calculate the gcd 
+# gcd(a_1^e - x_1, ..., a_n^e - x_n).
+# There is a very high probability that these numbers don't have any common factor
+# aside from n, so we will almost surely get n.
+def recover_n(num_samples = 2, e = 65537):
     values = []
 
+    # Generate multiples of n
     for _ in range(num_samples):
         s = gen_random_string()
-        (a, session_info) = jwt_hash_for_rs256(s)
+        (x, session_info) = jwt_hash_for_rs256(s)
         session_jwt = create_session_and_obtain_jwt(s)
         session_parts = session_jwt.split('.')
         assert(session_info == f"{session_parts[0]}.{session_parts[1]}")
-        x = int_signature_from_jwt(session_jwt)
+        a = int_signature_from_jwt(session_jwt)
 
         x = gmpy2.mpz(x)
         a = gmpy2.mpz(a)
-        print(f"a: {a}\nx: {x}")
 
-        val = pow(x, e)
+        val = pow(a, e)
         print(f"val bit_length: {val.bit_length()}")
 
-        diff = val - a
-        values.append(diff)
+        values.append(val - x)
 
-    # calculate gcd
+    # Calculate gcd
     n = values[0]
     for v in values[1:]:
         n = gmpy2.gcd(n, v)
@@ -144,63 +141,34 @@ def recover_n(num_samples=2, e = 65537):
     return n
 
 
-# n = int(recover_n(5))
-n = 30119723976045246500887959920897642376905514522104705876695572516818975656665827754462226597973931127004963194508794779495518118035029841228002850562126612806174354282950756669656076190799693066363785733231859172664786298352294594850108982261525326147060353679479844558827458650965802914077525964824412575118501773357860374735206849817271524812002047307305597712628593230518376740507962518305824812671107459660525177087958778694060270468673690931325503094560625544374011735643694318730778241846282742819834483180624645324880062782719575587058519516842316778261924794437716972651884728674806670910304714203419102131413
+n = int(recover_n(8))
 print(f"n: {n}")
 assert(n == 30119723976045246500887959920897642376905514522104705876695572516818975656665827754462226597973931127004963194508794779495518118035029841228002850562126612806174354282950756669656076190799693066363785733231859172664786298352294594850108982261525326147060353679479844558827458650965802914077525964824412575118501773357860374735206849817271524812002047307305597712628593230518376740507962518305824812671107459660525177087958778694060270468673690931325503094560625544374011735643694318730778241846282742819834483180624645324880062782719575587058519516842316778261924794437716972651884728674806670910304714203419102131413)
+PUBLIC_KEY = public_key_to_pem_format(n)
 
 
-serialize_pem_key(n)
-assert(parse_rsa_public_pem()[0] == n)
+# # In case you want to persist the public key in a .pem file, uncomment these lines:
+# serialize_pem_key(n)
+# assert(parse_rsa_public_pem()[0] == n)
 
-with open('Web/rsa-or-hmac-2-public.pem', 'rb') as f:
-   PUBLIC_KEY = f.read()
-
-print("pubKey:")
-print(PUBLIC_KEY)
-
-import jwt
-encoded = jwt.encode({'username': 'hola', 'admin': True}, PUBLIC_KEY, algorithm='HS256')
-print(f"forged jwt: {encoded}")
-decoded = jwt.decode(encoded, PUBLIC_KEY, algorithms=['HS256', 'RS256'])
-print(decoded)
-
-
-
-# n = 30096249942681484329654519953485866783863444473812858930726522962770050300159749568703908449771989466816004339531489467614079230208259604211603043085550566177214318913761629594129027609667020120585305092219778254121504601589168868471617050825114792584050775186608539273673697857638163396374797520482195366079163107064138679136473483163620155828280343003056926361310377660526407964993959229504458985564422100868953257202915062680746308235150920189812952257280065729439227943387447720293521241469919373915525163182245682720471505135783175242512359233696093961963945764543996936467096240741712414329261534413033631786781 
-# while True:
-#     candidate = int_signature_from_jwt(create_session_and_obtain_jwt())
-#     print(candidate.bit_length())
-#     if candidate > n:
-#         print(candidate)
-#         n = candidate
-
-
-# Now, I have unbounded access to an oracle that recieves some b and returns SHA256(b)^s mod n. So I have access to an oracle that gives me both
-# x and x^s mod n. 
-
-# pub_key = "-----BEGIN RSA PUBLIC KEY-----\nMIIBCgKCAQEAvoOtsfF5Gtkr2Swy0xzuUp5J3w8bJY5oF7TgDrkAhg1sFUEaCMlR\nYltE8jobFTyPo5cciBHD7huZVHLtRqdhkmPD4FSlKaaX2DfzqyiZaPhZZT62w7Hi\ngJlwG7M0xTUljQ6WBiIFW9By3amqYxyR2rOq8Y68ewN000VSFXy7FZjQ/CDA3wSl\nQ4KI40YEHBNeCl6QWXWxBb8AvHo4lkJ5zZyNje+uxq8St1WlZ8/5v55eavshcfD1\n0NSHaYIIilh9yic/xK4t20qvyZKe6Gpdw6vTyefw4+Hhp1gROwOrIa0X0alVepg9\nJddv6V/d/qjDRzpJIop9DSB8qcF1X23pkQIDAQAB\n-----END RSA PUBLIC KEY-----\n"
-# with open('Web/rsa-or-hmac-2-private.pem', 'rb') as f:
-#    PRIVATE_KEY = f.read()
-# # Public key generated using: openssl rsa -RSAPublicKey_out -in rsa-or-hmac-2-private.pem -out rsa-or-hmac-2-public.pem
+# # In case you want to load a public key from a .pem file, uncomment these lines:
 # with open('Web/rsa-or-hmac-2-public.pem', 'rb') as f:
 #    PUBLIC_KEY = f.read()
-#
-# print("sk:", PRIVATE_KEY)
-# print("pk:", PUBLIC_KEY)
-#
-# import jwt
-# import base64
-# import json
-#
-# token = jwt.encode({"admin": True}, pub_key, algorithm="HS256")
-# token_parts = token.split('.')
-# print(base64.b64decode(token_parts[0]))
-# # print(base64.urlsafe_b64decode(token_parts[1]))
-# print(base64.b64decode(token_parts[2]))
-# # print(jwt.decode(token,pub_key, algorithms=["HS256"]))
-# print(jwt.get_unverified_header(token))
-# print(jwt.decode(token, options={"verify_signature": False}))
+# print(f"pubKey: {PUBLIC_KEY}")
+
+
+encoded = jwt.encode({'username': 'hola', 'admin': True}, PUBLIC_KEY, algorithm='HS256')
+print(f"forged jwt: {encoded}")
+# decoded = jwt.decode(encoded, PUBLIC_KEY, algorithms=['HS256', 'RS256'])
+# print(f"decoded jwt: {decoded}")
+
+base_url = "https://web.cryptohack.org/rsa-or-hmac-2/"
+endpoint = f"authorise/{encoded}/"
+url = base_url + endpoint
+
+response = requests.get(url)
+print(response.json())
+
 
 # Running this code by itself throws the following error:
 
