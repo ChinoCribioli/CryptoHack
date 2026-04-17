@@ -1,0 +1,3 @@
+Go to Edit > Preferences > Protocols > TLS in Wireshark and set the `(Pre)-Master-Secret log filename` to the file given by the challenge. That decrypts the whole conversation, and you can go look for the flag the same way as the previous challenge.
+
+466c61673a2063727970746f7b6578706f72745f53534c4b45594c4f4746494c457d
