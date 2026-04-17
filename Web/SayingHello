@@ -1,0 +1,5 @@
+The command to connect to a server with openssl is `openssl s_client -connect <hostname>:<port>`. The hostname is `tls1.cryptohack.org`, but I had to guess the port number since the challenge doesn't specify it. Since one of the standards is 443 I tried that one and worked.
+
+The flag to set the TLS version to 1.2 is `-tls1_2`. The final command resulted in:
+
+`openssl s_client -connect tls1.cryptohack.org:443 -tls1_2`
