@@ -1,4 +1,4 @@
-# SOURCE
+### SOURCE
 
 import numpy as np
 from random import SystemRandom
@@ -54,5 +54,34 @@ msg = np.fromiter([int(i) for i in "{:0{}b}".format(
     bytes_to_long(FLAG), 8 * len(FLAG))], dtype)
 ciphertexts = np.vstack([encrypt(pk, b) for b in msg])
 
-np.savetxt("ciphertexts.txt", ciphertexts, fmt="%d")
-np.savetxt("public_key.txt", pk, fmt="%d")
+# np.savetxt("ciphertexts.txt", ciphertexts, fmt="%d")
+# np.savetxt("public_key.txt", pk, fmt="%d")
+
+
+### SOLUTION
+
+# load pk:
+pk = np.loadtxt("public_key.txt", dtype=np.int16)
+
+offset = 52
+A = pk[:-1].T[offset:64+offset]
+b = pk[-1][:64]
+
+import galois
+
+# Definir el campo GF(2)
+GF = galois.GF(2)
+
+# Datos (ejemplo)
+A = GF(A % 2)
+b = GF(b % 2)
+
+# Resolver A x = b
+# Ojo: solve requiere sistema consistente y normalmente cuadrado o compatible
+x = GF(np.linalg.solve(A, b))
+print(x)
+print(x@A)
+print(b)
+# assert((x @ A == b).all())
+
+
