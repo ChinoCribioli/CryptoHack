@@ -39,6 +39,8 @@ def verify_data(finished_key, transcript, hash_alg):
     return tls_HMAC(finished_key, transcript_hash, hash_alg)
 
 
+# I just go to packets 8 and 10, to the Transport Layer Security part, go inside each Record Layer and copy each step of the protocol as a Hex Stream. Remember the challenge says that you mustn't include the Record Layer hearders.
+
 client_hello = bytes.fromhex("""
 010001fc0303d8c7c79e62892bd09bafe063b1f948880855589ef13eb847ca27e8436aa6ad8020e9319bcbc7a532d08e0aa9597740d8467a3452ad54693c6004d5e7e43fa37cd800b6130213031301c02cc03000a3009fcca9cca8ccaac0afc0adc0a3c09fc05dc061c057c05300a7c02bc02f00a2009ec0aec0acc0a2c09ec05cc060c056c05200a6c024c028006b006ac073c07700c400c3006d00c5c023c02700670040c072c07600be00bd006c00bfc00ac0140039003800880087c019003a0089c009c01300330032009a009900450044c0180034009b0046009dc0a1c09dc051009cc0a0c09cc050003d00c0003c00ba00350084002f0096004100ff010000fd000000180016000013746c73332e63727970746f6861636b2e6f7267000b000403000102000a00160014001d0017001e0019001801000101010201030104337400000010000e000c02683208687474702f312e31001600000017000000310000000d0030002e040305030603080708080809080a080b080408050806040105010601030302030301020103020202040205020602002b0009080304030303020301002d00020101003300260024001d0020f54b4d2a777319ad3dc6cd8239025f24b547cce209feb5b60aeaec25cb63af1b0015002800000000000000000000000000000000000000000000000000000000000000000000000000000000
 """)
@@ -64,8 +66,8 @@ server_finished = bytes.fromhex("""
 """)
 
 
-# client_handshake_traffic_secret = bytes.fromhex("?") # This is in the keylog file
-client_handshake_traffic_secret = bytes.fromhex("210cb7af9f5da56460d21cda98cda0ac82b979e15979482182e037cf42f663c6f985875a9330fc69c9c4751b6285e5c4907ce33d981456ba33b21db323c3571903f4387030fa1a1c5d8a43cde0a07f17")
+# client_handshake_traffic_secret = bytes.fromhex("?") # This is in the keylog file. Since the first chunk of every secret in the keylog file is the same bytearray, I supposed that the secret is the chunk that is after the space. I don't know what the first chunk is.
+client_handshake_traffic_secret = bytes.fromhex(" ca8fb94500b13314d4c47158b1e9c7e5d3374cf9c5703b6d8ab879e99af1529d0e013b84ae1e7b15233ff64a1ed6e06c")
 finished_key = HKDF_expand_label(
     client_handshake_traffic_secret, b"finished", b"", HASH_LEN, HASH_ALG)
 
