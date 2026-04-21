@@ -60,28 +60,43 @@ ciphertexts = np.vstack([encrypt(pk, b) for b in msg])
 
 ### SOLUTION
 
-# load pk:
-pk = np.loadtxt("public_key.txt", dtype=np.int16)
+# The decryption process only looks the last bit of <sk,c>. Therefore, we can view all the variables in mod 2 and the decryption will be the same.
+# We are going to recover s mod 2, which is enough to decrypt messages because of the previous line.
+# If we only look the variables mod 2, the last row of the pk is s*A. If we see it as a column vector, it is A.T*s, where A.T is the transpose of A.
+# Since A's dimensions are (64,512), A.T's dimensions are (512,64), and s is a dimension 64 vector. Since we have A (and therefore A.T),
+# and we have A.T*s, we can find s as the solution of a system of equations with 64 variables and 512 equations, which is more than enough.
 
-offset = 52
-A = pk[:-1].T[offset:64+offset]
-b = pk[-1][:64]
+pk = np.loadtxt("public_key.txt", dtype=dtype)
 
+# From now on, we see everything as mod 2.
 import galois
-
-# Definir el campo GF(2)
 GF = galois.GF(2)
 
-# Datos (ejemplo)
+# To solve the system of equations, we can take a subset of 64 rows of A.T that make a vectorial subspace of dimension 64.
+# That is, 64 linearly independent rows.
+# For that, we consider the rows from 'offset' to 'offset + 64' for some convenient value of offset. I tried some values and 52 works.
+offset = 52 
+A = pk[:-1].T[offset : offset+64]
 A = GF(A % 2)
+# b = A.T*s. We only consider the corresponding coordinates.
+b = pk[-1][offset : offset+64]
 b = GF(b % 2)
 
-# Resolver A x = b
-# Ojo: solve requiere sistema consistente y normalmente cuadrado o compatible
-x = GF(np.linalg.solve(A, b))
-print(x)
-print(x@A)
-print(b)
-# assert((x @ A == b).all())
+# Find s as the solution of the system.
+s = GF(np.linalg.solve(A, b))
 
+# Check that s is indeed the secret we are looking for.
+s = np.array(s)
+A = pk[:-1]
+b = pk[-1]
+assert((s @ A) % 2 == b % 2).all()
 
+# Now, decrypt all the bits given the sk.
+sk = np.append(-s, 1)
+cts = np.loadtxt("ciphertexts.txt", dtype=dtype)
+flag_bits = '0b'
+for row in cts:
+    flag_bits += str(decrypt(sk,row))
+
+flag = long_to_bytes(int(flag_bits,2))
+print(flag)
