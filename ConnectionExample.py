@@ -1,11 +1,10 @@
 import socket
 import json
+from pwn import * # pip install pwntools
 
 HOST = "socket.cryptohack.org"
 PORT = 13403 
 
-from pwn import * # pip install pwntools
-import json
 
 r = remote(HOST, PORT)
 
