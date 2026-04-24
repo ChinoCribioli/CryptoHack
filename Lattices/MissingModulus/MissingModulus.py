@@ -80,13 +80,10 @@ class Challenge:
 
 ### SOLUTION
 
-# The encryption of m is b = A @ S + m * 23 + e, where A and S are uniformly sampled from [-q/2,q/2], and e is a 0-centered normal.
-# Therefore, the expected value of A @ S + e is 0. So we can ask the i-th character of the flag encrypted several times,
-# calculate the average of all the responses, and that should give roughly 23*FLAG[i] by the Law of Large Numbers.
-# The challenge is called Missing Modulus because, if the protocol returned (A@S + m*delta + e) % p, this technique wouldn't be possible.
-
 import socket
 import json
+import ast
+import numpy as np
 from pwn import *
 
 HOST = "socket.cryptohack.org"
@@ -96,8 +93,15 @@ PORT = 13412
 r = remote(HOST, PORT)
 
 def json_recv(socket):
-    line = socket.recv(100000)
-    return json.loads(line.decode())
+    line = socket.recv(200000)
+    # For some reason, some responses are split into two lines, so I have to do this because only the first line is not a valid JSON.
+    try:
+        return json.loads(line)
+    except:
+        line += socket.recv(200000)
+        # print(line)
+        return json.loads(line)
+    # return json.loads(line.decode())
 
 def json_send(socket, message):
     request = json.dumps(message).encode()
@@ -105,15 +109,59 @@ def json_send(socket, message):
 
 
 flag = ''
+As = []
+bs = []
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
     socket.connect((HOST, PORT))
     
-    print(socket.recv(10000), "\n")
+    print(socket.recv(20000), "\n")
 
     # I made an early request with index = 10000 and the response was that the flag has length 46.
     l = 46
-    sample_size = 100
+    for _ in range(600):
+        message = {
+            'option': 'get_flag',
+            'index': 0
+        }
+        json_send(socket, message)
+        response = json_recv(socket)
+        # print(response)
+        As.append(ast.literal_eval(response['A']))
+        bs.append(int(response['b']))
+
+    matrix = np.array(As, dtype=int).T
+    matrix = np.vstack([matrix, np.array(bs, dtype=int)])    
+    print(matrix.shape)
+    np.savetxt('MissingModulus.txt', matrix, fmt='%d')
+    print("matrix saved!")
+
+
+
+# lat = matrix(A).augment(vector(b))
+# lat = lat.augment(q * identity_matrix(625)) # I add the canonical base times q to represent "taking modulo q" in each coordinate in the lattice
+# lat = lat.transpose()
+# sol = lat.LLL()
+
+
+
+
+
+
+
+# The encryption of m is b = A @ S + m * 23 + e, where A and S are uniformly sampled from [-q/2,q/2], and e is a 0-centered normal.
+# Therefore, the expected value of A @ S + e is 0. So we can ask the i-th character of the flag encrypted several times,
+# calculate the average of all the responses, and that should give roughly 23*FLAG[i] by the Law of Large Numbers.
+# The challenge is called Missing Modulus because, if the protocol returned (A@S + m*delta + e) % p, this technique wouldn't be possible.
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
+    socket.connect((HOST, PORT))
+    
+    print(socket.recv(20000), "\n")
+
+    # I made an early request with index = 10000 and the response was that the flag has length 46.
+    l = 46
+    sample_size = 10000
     for i in range(len(flag), l):
         total = 0
         for _ in range(sample_size):
@@ -129,26 +177,3 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
         print(total//(sample_size*delta))
         flag += chr(total//(sample_size*delta))
         print(flag)
-
-
-    # response = socket.recv(10000)
-    # q = int(response.split(b'"')[1], 16)
-    # n = q**2 
-    # phi_n = q*(q-1)
-    # g = pow(2,q-1,n)
-    #
-    # params = {
-    #     'g': hex(g),
-    #     'n': hex(n)
-    # }
-    # socket.send(json.dumps(params).encode('utf-8'))
-    #
-    # print(socket.recv(10000), "\n")
-    #
-    # answer = {
-    #     'x': hex(secret)
-    # }
-    # socket.send(json.dumps(answer).encode('utf-8'))
-    #
-    # print(socket.recv(10000), "\n")
-
