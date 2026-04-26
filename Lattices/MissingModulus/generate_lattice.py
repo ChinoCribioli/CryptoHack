@@ -93,13 +93,14 @@ PORT = 13412
 r = remote(HOST, PORT)
 
 def json_recv(socket):
-    line = socket.recv(200000)
-    # For some reason, some responses are split into two lines, so I have to do this because only the first line is not a valid JSON.
-    try:
-        return json.loads(line)
-    except:
-        line += socket.recv(200000)
-        return json.loads(line)
+    line = b''
+    # For some reason, some responses are split into more than one line, so I have to do this.
+    while True:
+        try:
+            line += socket.recv(100000)
+            return json.loads(line)
+        except:
+            pass
 
 def json_send(socket, message):
     request = json.dumps(message).encode()
