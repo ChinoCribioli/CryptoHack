@@ -106,7 +106,6 @@ def json_send(socket, message):
     socket.send(request)
 
 
-flag = ''
 As = []
 bs = []
 
@@ -115,15 +114,17 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
     
     print(socket.recv(20000), "\n")
 
-    # In case we have more generators than the dimension of the space, we take more than 512 samples. Here, we take 600.
-    for _ in range(600):
+    # To avoid having more generators than the dimension of the space, we take more than 512 samples. Here, we take 600.
+    # Having a number of generators considerably lower than the dimension of the space makes it more likely for us to find the desired vector using LLL.
+    for t in range(600):
+        if t % 100 == 0:
+            print(f"Fetching sample number {t}.")
         message = {
             'option': 'encrypt',
             'message': 0
         }
         json_send(socket, message)
         response = json_recv(socket)
-        # print(response)
         As.append(ast.literal_eval(response['A']))
         bs.append(int(response['b']))
 
@@ -134,43 +135,3 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
     print("lattice saved!")
 
 
-
-# lat = matrix(A).augment(vector(b))
-# lat = lat.augment(q * identity_matrix(625)) # I add the canonical base times q to represent "taking modulo q" in each coordinate in the lattice
-# lat = lat.transpose()
-# sol = lat.LLL()
-
-
-
-
-
-
-
-# The encryption of m is b = A @ S + m * 23 + e, where A and S are uniformly sampled from [-q/2,q/2], and e is a 0-centered normal.
-# Therefore, the expected value of A @ S + e is 0. So we can ask the i-th character of the flag encrypted several times,
-# calculate the average of all the responses, and that should give roughly 23*FLAG[i] by the Law of Large Numbers.
-# The challenge is called Missing Modulus because, if the protocol returned (A@S + m*delta + e) % p, this technique wouldn't be possible.
-
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
-    socket.connect((HOST, PORT))
-    
-    print(socket.recv(20000), "\n")
-
-    # I made an early request with index = 10000 and the response was that the flag has length 46.
-    l = 46
-    sample_size = 10000
-    for i in range(len(flag), l):
-        total = 0
-        for _ in range(sample_size):
-            message = {
-                'option': 'get_flag',
-                'index': i
-            }
-            json_send(socket, message)
-            response = json_recv(socket)
-            # print(response)
-            total += int(response['b'])
-
-        print(total//(sample_size*delta))
-        flag += chr(total//(sample_size*delta))
-        print(flag)

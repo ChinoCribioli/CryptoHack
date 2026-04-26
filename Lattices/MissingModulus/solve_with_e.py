@@ -9,7 +9,7 @@ M = np.loadtxt('lattice.txt', dtype=int)
 offset = 0
 A = M[:-1].T[offset : offset + 512]
 b = M[-1][offset : offset + 512]
-e = np.loadtxt('e.txt', dtype=int)[0][offset : offset + 512]
+e = np.loadtxt('e.txt', dtype=int)[offset : offset + 512]
 
 
 print("A shape:", A.shape)
@@ -19,7 +19,6 @@ S = np.linalg.solve(A,b-e)
 
 HOST = "socket.cryptohack.org"
 PORT = 13412 
-# r = remote(HOST, PORT)
 
 def json_recv(socket):
     line = socket.recv(200000)
