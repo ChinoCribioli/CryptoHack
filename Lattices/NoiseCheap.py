@@ -132,16 +132,8 @@ def json_send(socket, message):
 #
 # lat = matrix(M)
 # reduction = lat.LLL()
-# # The e vector will very likely be the first vector of the LLL reduction since it will most likely be the shortest.
-# e = reduction[0]
-#
-# # We check it is consistent with the Normal(0,3.8) distribution
-# for c in e:
-#     assert(abs(c) == p or c == 0)
-#
 # np.savetxt('e.txt', reduction, fmt='%d')
 # print("error array saved!")
-# print(e)
 
 # Solve using the error array
 
@@ -161,6 +153,8 @@ for c in e:
 # S = np.linalg.solve(A,b-p*e)
 S = A.solve_right(b-p*e)
 
+assert(A[0]*S + p*e[0] == b[0])
+
 flag = ''
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
@@ -169,7 +163,7 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
     print(socket.recv(20000), "\n")
 
     # I made an early request with index = 10000 and the response was that the flag has length 46.
-    l = 46
+    l = 6
     for i in range(l):
         message = {
             'option': 'get_flag',
@@ -179,10 +173,11 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
         response = json_recv(socket)
         # print(response)
         A = np.array(ast.literal_eval(response['A']), dtype=int)
-        A = vector(F_q, A.tolist())
-        b = F_q(int(response['b']))
+        # A = vector(F_q, A.tolist())
+        b = int(response['b'])
+        # b = F_q(int(response['b']))
 
-        print(b - A*S)
-        flag += chr(int(b - A*S)%p)
+        print((b - A*S)%q)
+        flag += chr(int(b - A@S)%p)
         print(flag)
 
