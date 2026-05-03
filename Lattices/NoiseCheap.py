@@ -137,32 +137,26 @@ def json_send(socket, message):
 
 # Solve using the error array
 
-# M = np.loadtxt('lattice.txt', dtype=int)
-# F_q = GF(q)
-# offset = 0
-# A = M[:n].T[offset : offset + n]
-# A = Matrix(F_q, A.tolist())
-# A = Matrix(F_q, As[offset : offset + n])
-# b = M[n][offset : offset + n]
-# b = vector(F_q, b.tolist())
-# b = vector(F_q, bs[offset : offset + n])
-# e = np.loadtxt('e.txt', dtype=int)[65][offset : offset + n]
-# print(e)
-# e = vector(F_q, e.tolist())
-#
-# for c in e:
-#     assert(c <= 1 or c == q-1)
-#
-# # S = np.linalg.solve(A,b-p*e)
-# S = A.solve_right(b-p*e)
-# print("S: ", S)
-#
-# for i in range(30):
-#     assert(A[i]*S + p*e[i] == b[i])
-
-S = [30768, 74544, 773049, 291121, 578795, 426496, 22993, 105337, 110054, 272810, 98444, 1029434, 69387, 870446, 158517, 760904, 130424, 512386, 683941, 843602, 563536, 632168, 802632, 109309, 873457, 838922, 816625, 478693, 137044, 899566, 730918, 844761, 100052, 938770, 388600, 984941, 634384, 723221, 237220, 511088, 270266, 777638, 413045, 461100, 105630, 54560, 133220, 881348, 881496, 153010, 236874, 678936, 535516, 1007719, 799375, 638124, 542407, 1022958, 681848, 1012805, 159829, 1005365, 619379, 821861]
 F_q = GF(q)
-S = vector(F_q, S)
+lat = np.loadtxt('lattice.txt', dtype=int)
+offset = 0
+
+As = lat[:n].T[offset : offset + n]
+# If I don't give the dimensions of the matrix explicitly, the script fails to find the correct S.
+As = Matrix(F_q, As.shape[0], As.shape[1], As.tolist())
+bs = lat[n][offset : offset + n]
+bs = vector(F_q, bs.tolist())
+
+es = np.loadtxt('e.txt', dtype=int)[65][offset : offset + n]
+es = vector(F_q, es.tolist())
+for e in es:
+    assert(e <= 1 or e == q-1)
+
+S = As.solve_right(bs-p*es)
+print("S: ", S)
+
+for i in range(30):
+    assert(As[i]*S + p*es[i] == bs[i])
 
 flag = ''
 
@@ -171,8 +165,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
     
     print(socket.recv(20000), "\n")
 
-    # I made an early request with index = 10000 and the response was that the flag has length 46.
-    l = 46
+    # I made an early request with index = 10000 and the response was that the flag has length 32.
+    l = 32
     for i in range(l):
         message = {
             'option': 'get_flag',
@@ -180,16 +174,12 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
         }
         json_send(socket, message)
         response = json_recv(socket)
-        # print(response)
         A = np.array(ast.literal_eval(response['A']), dtype=int)
         A = vector(F_q, A.tolist())
-        # b = int(response['b'])
         b = F_q(int(response['b']))
 
-        # print(b - A*S)
-        # print(b - A*S + p)
-        # print(b - A*S - p)
         char_with_noise = int(b-A*S)
+        # This is the case where the noise e is -1. In this case, b-A*S = m-p, which is negative and therefore it is a number close to q when converted from F_q to integers.
         if char_with_noise > 2*p :
             char_with_noise += p 
             char_with_noise %= q
