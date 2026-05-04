@@ -66,7 +66,7 @@ class Challenge:
 
 ### SOLUTION
 
-import socket
+import socket as sckt
 import json
 import ast
 import numpy as np
@@ -93,49 +93,60 @@ def json_send(socket, message):
     socket.send(request)
 
 
-# Generate lattice:
 
-# As = []
-# bs = []
-#
-# with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
-#     socket.connect((HOST, PORT))
-#     
-#     print(socket.recv(20000), "\n")
-#
-#     # To avoid having more generators than the dimension of the space, we take more than 512 samples. Here, we take 600.
-#     # Having a number of generators considerably lower than the dimension of the space makes it more likely for us to find the desired vector using LLL.
-#     dim = 100
-#     for t in range(dim):
-#         if t % 10 == 0:
-#             print(f"Fetching sample number {t}.")
-#         message = {
-#             'option': 'encrypt',
-#             'message': 0
-#         }
-#         json_send(socket, message)
-#         response = json_recv(socket)
-#         As.append(ast.literal_eval(response['A']))
-#         bs.append(int(response['b']))
-#
-#     queries_matrix = np.array(As, dtype=int).T
-#     modulus_matrix = q * np.identity(dim)
-#     lattice = np.vstack([queries_matrix, np.array(bs, dtype=int), modulus_matrix])    
-#     print(lattice.shape)
-#     np.savetxt('lattice.txt', lattice, fmt='%d')
-#     print("lattice saved!")
+### The solution to this challenge is very similar to the 'Missing Modulus' challenge:
+# We first make a bunch of requests to encrypt the message 0, which give us a lot of samples A_i and b_i = A_i*S + p*e_i. We call d the number of requests.
+# After that, we construct a lattice where the first n = 64 rows consist of the matrix containing the A_i's as columns. Thus, the dimension of the elementos of the lattice is d.
+# The 65th generator of the lattice is the array of b_i's. But, since we are working in F_q now, we also add the canonical vectors multiplied by q as generators.
+# That is, all the vectors of the form (0,0,...,0,q,0,...,0), so that we can apply "modulo q" in the lattice when doing the LLL reduction.
+# Now, notice that the vector p*(e_1,e_2,...,e_d) is in the lattice, since p*e_i = b_i - A_i*S.
+# Furthermore, since we can "apply modulo q" in the vectors of the lattice, we know that (e_1,e_2,...,e_d) is also in the lattice. That is because
+# we can take p*(e_1,...,e_d) and multiply it by p^{-1} mod q, and we get a vector of the form of (1+q*k)*(e_1,...,e_d). Then we can subtract all the 
+# q*k terms in each coordinate using the last generators of the lattice, giving us as a result (e_1,...,e_d).
+# Now, this last e vector has very low norm, since its coordinates are only -1's, 0's and 1's. Thus, applying LLL to this lattice will give us the values of e_i.
+# Using this, we can find S by solving a system of equations in F_q, just as in 'Missing Modulus'.
 
-# Apply LLL reduction
+# Step 1: Generate lattice.
 
-# M = np.loadtxt('lattice.txt', dtype=int)
-# print(M.shape)
-#
-# lat = matrix(M)
-# reduction = lat.LLL()
-# np.savetxt('e.txt', reduction, fmt='%d')
-# print("error array saved!")
+As = []
+bs = []
 
-# Solve using the error array
+with sckt.socket(sckt.AF_INET, sckt.SOCK_STREAM) as socket:
+    socket.connect((HOST, PORT))
+    
+    print(socket.recv(20000), "\n")
+
+    # Here, we set the parameter d explained in the solution as 100. That way we get a dimension bigger than 64.
+    dim = 100
+    for t in range(dim):
+        if t % 10 == 0:
+            print(f"Fetching sample number {t}.")
+        message = {
+            'option': 'encrypt',
+            'message': 0
+        }
+        json_send(socket, message)
+        response = json_recv(socket)
+        As.append(ast.literal_eval(response['A']))
+        bs.append(int(response['b']))
+
+    queries_matrix = np.array(As, dtype=int).T
+    modulus_matrix = q * np.identity(dim)
+    lattice = np.vstack([queries_matrix, np.array(bs, dtype=int), modulus_matrix])    
+    np.savetxt('lattice.txt', lattice, fmt='%d')
+    print("lattice saved!")
+
+# Step 2: Apply LLL reduction.
+
+M = np.loadtxt('lattice.txt', dtype=int)
+print(M.shape)
+
+lat = matrix(M)
+reduction = lat.LLL()
+np.savetxt('e.txt', reduction, fmt='%d')
+print("error array saved!")
+
+# Step 3: Solve using the error array.
 
 F_q = GF(q)
 lat = np.loadtxt('lattice.txt', dtype=int)
@@ -147,6 +158,7 @@ As = Matrix(F_q, As.shape[0], As.shape[1], As.tolist())
 bs = lat[n][offset : offset + n]
 bs = vector(F_q, bs.tolist())
 
+# We noticed by inspecting the resulting LLL reduction that the 66th vector is the desired (e_1,e_2,...,e_d)
 es = np.loadtxt('e.txt', dtype=int)[65][offset : offset + n]
 es = vector(F_q, es.tolist())
 for e in es:
@@ -155,12 +167,13 @@ for e in es:
 S = As.solve_right(bs-p*es)
 print("S: ", S)
 
-for i in range(30):
+# We check for some values that the secret S indeed works.
+for i in range(20):
     assert(As[i]*S + p*es[i] == bs[i])
 
 flag = ''
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
+with sckt.socket(sckt.AF_INET, sckt.SOCK_STREAM) as socket:
     socket.connect((HOST, PORT))
     
     print(socket.recv(20000), "\n")
