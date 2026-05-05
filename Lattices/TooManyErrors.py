@@ -54,10 +54,21 @@ input.
 
 ### SOLUTION
 
+# For this challenge, we must note that, after seeding the Random Number Generator, the outputs of 'rand' are deterministic. Thus, after a 'reset' query, the values of a, b and e are fixed
+# since the SEED variable is fixed. This is up until the line where we seed the RNG with a new 'getrandbits(32)', where half of the times the server modifies a value of a before sending it.
+# The first step is to retrieve the values of a and b that are default before this last modification step. That way we can identify, in the cases where a coordinate is modified in the last minute,
+# which coordinate was modified. Since this last-minute change occurs only half of the times, we can make several queries and take as reference values of a and b that appear more than once.
+# Once we have the reference a and b, we can start making queries to find the flag. If I make a query and the resulting value of the i-th coordinate of a is different than the reference,
+# I can find the value of FLAG[i] by doing (ref_b - b)*(ref_a[i] - a[i])^{-1} mod q. This is because (ref_b - b) = sum_j(ref_a[j]*FLAG[j] - a[j]*FLAG[j]) + e - e = FLAG[i]*(ref_a[i] - a[i]).
+
+# Fun fact: If we already know t of the l characters of the flag, the probability of getting a new character in a query (which is the probability that one of the l-t coordinates that I don't know is
+# changed in the last minute in the next query) is 0.5*(l-t)/l. This is because we have a 0.5 probability of modifying a character in the last minute and a (l-t)/l probability of it being a
+# new one we don't know. Thus, the expected number of queries to get a new character when knowing t already is 1/(0.5*(l-t)/l) = 2l/(l-t).
+# Therefore, the expected number of queries to find the whole flag from scratch is the sum of all these terms with t ranging from 0 to l-1, which is:
+# 2l*(1/l + 1/(l-1) + ... + 1/2 + 1/1). In this case l = 28, which gives us an expected number of queries of 219.921... ~ 220 queries.
+
 import socket as sckt
 import json
-import ast
-import numpy as np
 from pwn import *
 
 HOST = "socket.cryptohack.org"
@@ -84,7 +95,7 @@ with sckt.socket(sckt.AF_INET, sckt.SOCK_STREAM) as socket:
     
     print(socket.recv(20000), "\n")
 
-    # First, we get the unchanged a and b, that we will take as reference.
+    # First, we get the defualt a and b, that we will take as reference.
     ref_a, ref_b = [], -1
     a_candidates, b_candidates = [], []
     T = 8 # Number of samples we take to find the reference a and b
@@ -101,7 +112,7 @@ with sckt.socket(sckt.AF_INET, sckt.SOCK_STREAM) as socket:
             'option': 'reset',
         }
         json_send(socket, message)
-        response = json_recv(socket)
+        json_recv(socket)
 
     for i in range(T):
         if len(ref_a):
@@ -109,22 +120,22 @@ with sckt.socket(sckt.AF_INET, sckt.SOCK_STREAM) as socket:
         for j in range(i+1,T):
             if a_candidates[i] == a_candidates[j]:
                 ref_a, ref_b = a_candidates[i], b_candidates[i]
+                print("Found the unchanged a and b!")
                 break
-    print("Found the unchanged a and b!")
 
     assert(ref_a == [68, 111, 104, 46, 12, 48, 29, 77, 113, 31, 76, 80, 126, 24, 77, 34, 69, 119, 109, 36, 85, 69, 28, 117, 80, 57, 110, 95])
     assert(ref_b == 1)
 
     # Now, we make queries until we complete the flag by encountering different values at the a's.
     l = len(ref_a)
-    found_characters = 0
+    characters_found = 0
     flag = [0]*l
-    while found_characters < l:
+    while characters_found < l:
         message = {
             'option': 'reset',
         }
         json_send(socket, message)
-        response = json_recv(socket)
+        json_recv(socket)
 
         message = {
             'option': 'get_sample',
@@ -144,9 +155,7 @@ with sckt.socket(sckt.AF_INET, sckt.SOCK_STREAM) as socket:
             continue
 
         flag[index] = ( (ref_b - b) * pow(ref_a[index] - a[index], -1, q) ) % q
-        found_characters += 1
+        characters_found += 1
         print(bytes(flag))
-
-
 
     
