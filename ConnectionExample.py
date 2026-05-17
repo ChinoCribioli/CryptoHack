@@ -1,44 +1,27 @@
-import socket
+import socket as sckt
 import json
-from pwn import * # pip install pwntools
+from pwn import *
 
 HOST = "socket.cryptohack.org"
-PORT = 13403 
+PORT = 13390 
 
+def json_recv(socket):
+    line = b''
+    while True:
+        try:
+            line += socket.recv(100000)
+            return json.loads(line)
+        except:
+            pass
 
-r = remote(HOST, PORT)
-
-def json_recv():
-    line = r.recvline()
-    return json.loads(line.decode())
-
-def json_send(message):
+def json_send(socket, message):
     request = json.dumps(message).encode()
-    r.sendline(request)
+    socket.send(request)
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
+
+with sckt.socket(sckt.AF_INET, sckt.SOCK_STREAM) as socket:
     socket.connect((HOST, PORT))
     
-    print(socket.recv(10000), "\n")
+    print(socket.recv(10000))
 
-    response = socket.recv(10000)
-    q = int(response.split(b'"')[1], 16)
-    n = q**2 
-    phi_n = q*(q-1)
-    g = pow(2,q-1,n)
-
-    params = {
-        'g': hex(g),
-        'n': hex(n)
-    }
-    socket.send(json.dumps(params).encode('utf-8'))
-
-    print(socket.recv(10000), "\n")
-
-    answer = {
-        'x': hex(secret)
-    }
-    socket.send(json.dumps(answer).encode('utf-8'))
-
-    print(socket.recv(10000), "\n")
 
