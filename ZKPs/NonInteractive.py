@@ -63,8 +63,7 @@ class Challenge:
 
 import socket
 import json
-from pwn import *
-from Crypto.Util.number import long_to_bytes
+import random
 
 HOST = "socket.cryptohack.org"
 PORT = 13428 

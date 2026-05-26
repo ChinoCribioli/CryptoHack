@@ -79,7 +79,6 @@ class Challenge:
 
 import socket
 import json
-from pwn import * # pip install pwntools
 from Crypto.Util.number import long_to_bytes
 
 HOST = "socket.cryptohack.org"

@@ -59,7 +59,6 @@ class Challenge:
 
 import socket
 import json
-from pwn import * # pip install pwntools
 
 HOST = "socket.cryptohack.org"
 PORT = 13425 
