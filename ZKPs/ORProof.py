@@ -206,19 +206,6 @@ import json
 HOST = "archive.cryptohack.org"
 PORT = 11840 
 
-# def json_recv(socket):
-#     line = b''
-#     while True:
-#         try:
-#             line += socket.recv(100000)
-#             return json.loads(line)
-#         except:
-#             pass
-#
-# def json_send(socket, message):
-#     request = json.dumps(message).encode()
-#     socket.send(request + b'\n')
-
 def receive(socket):
     message = socket.recv(10000)
     print(message.decode())
@@ -326,18 +313,4 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
     prove_special_soundness(socket)
 
     prove_SHVZK(socket)
-
-    # challenge = json_recv(socket)
-    #
-    # e = R
-    #
-    # params = {
-    #         'e': e,
-    # }
-    # json_send(socket, params)
-    #
-    # response = json_recv(socket)
-    # flag = response['z'] // R
-    # print(long_to_bytes(flag))
-    #
 
