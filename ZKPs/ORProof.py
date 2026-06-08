@@ -198,10 +198,11 @@ class Challenge:
         print("well done!")
         print(FLAG)
 
+
 ### SOLUTION
 
+
 import socket
-import json
 
 HOST = "archive.cryptohack.org"
 PORT = 11840 
@@ -215,7 +216,7 @@ def send_input(socket, input):
     print(input)
     socket.send(str(input).encode() + b'\n')
 
-# Given an e, a z, and a y, compute the a that makes the transcript valid
+# Given an 'e', a 'z', and a 'y', compute the 'a' that makes the transcript valid
 def complete_a_for_transcript(tr, y):
     tr[0] = pow(g, tr[2], p) * pow(y, -tr[1], p)
     return tr
@@ -314,3 +315,18 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket:
 
     prove_SHVZK(socket)
 
+
+# Aside from this particular OR Protocol, which is generic for any Sigma protocol, I designed a different
+# OR Protocol for this specific proof that I know w such that g^w = y0 or y1:
+# Assume that the prover knows w such that g^w = y0 (the g^w = y1 case is analogous). For the commitment,
+# the prover sorts a random r and a random t, and sends g^r * y1^t =: c as a commitment.
+# Then the verifier sends a challenge e. And the proof is then (p0, p1) := ((r-e)/w, t).
+# The verification is then asserting that c == g^e * y0^p0 * y1^p1.
+# For the g^w = p1 case, the commitment is g^r * y0^t and the proof is (t, (r-e)/w).
+
+# This is clearly correct.
+# As for the soundness, notice that given two valid transcripts (c, e1, (p0, p1)) and (c, e2, (q0, q1)),
+# we can compute p0 - q0 = (r-e1)/w - (r-e2)/w = (e2 - e1)/w. Therefore, (p0-q0)/(e2-e1) = 1/w, so we can recover the witness 
+# by doing (e2-e1)/(p0-q0) = w.
+# As for the SHVZK, there is clearly a simulator that generates a valid transcript by, given an 'e' and a proof (p0,p1), 
+# computes the commitment c as g^e * y0^p0 * y1^p1, which results in a valid transcript.
